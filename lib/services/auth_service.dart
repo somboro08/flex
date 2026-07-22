@@ -5,14 +5,16 @@ import 'package:flutter/foundation.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
-  // Identifiant Google
+  // Identifiant Google — via dart-define (ex: --dart-define=GOOGLE_CLIENT_ID=votre_id)
+  static const String _googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: '272797549782-asb4ov7vib75dhi09uukr8riod1bk9c4.apps.googleusercontent.com',
+    clientId: _googleClientId.isNotEmpty ? _googleClientId : null,
   );
 
   // --- CONFIGURATION DEV ---
-  // Mettez à 'true' pour passer l'erreur Google et accéder à l'app
-  bool get isMockMode => true; 
+  // Passez --dart-define=MOCK_MODE=false pour la production
+  static const bool isMockMode = bool.fromEnvironment('MOCK_MODE', defaultValue: true);
   // --------------------------
 
   Stream<User?> get user => _auth.authStateChanges();
