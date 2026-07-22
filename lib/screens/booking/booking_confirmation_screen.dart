@@ -1,15 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
-import 'package:intl/intl.dart';
-import '../payment/payment_bottom_sheet.dart';
-import '../../services/pdf_service.dart';
-import 'package:printing/printing.dart';
-
+import '../payment/payment_screen.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   final Listing listing;
-
   const BookingConfirmationScreen({super.key, required this.listing});
 
   @override
@@ -17,154 +19,192 @@ class BookingConfirmationScreen extends StatefulWidget {
 }
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
-  DateTime? _startDate;
-  DateTime? _endDate;
-  int _guests = 1;
-  bool _isProcessing = false;
-  PaymentMethod? _lastPaymentMethod;
-  Map<String, dynamic>? _lastPaymentDetails;
+  DateTime? _dateArrivee;
+  DateTime? _dateDepart;
+  int _nombreVoyageurs = 1;
 
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
+  int get _nombreNuits {
+    if (_dateArrivee == null || _dateDepart == null) return 0;
+    return _dateDepart!.difference(_dateArrivee!).inDays;
+  }
+
+  double get _sousTotal => widget.listing.prixParNuit * _nombreNuits;
+  double get _fraisService => _sousTotal * 0.08;
+  double get _total => _sousTotal + _fraisService;
+
+  Future<void> _pickDates() async {
+    final range = await showDateRangePicker(
       context: context,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: FlexColors.primary500,
-              onPrimary: Colors.white,
-              onSurface: FlexColors.neutral800,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
-      });
-    }
-  }
-
-  int get _nights {
-    if (_startDate == null || _endDate == null) return 0;
-    return _endDate!.difference(_startDate!).inDays;
-  }
-
-  double get _totalPrice => _nights * widget.listing.prixParNuit;
-
-  Future<void> _confirmBooking() async {
-    if (_startDate == null || _endDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner les dates de séjour.')),
-      );
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => PaymentBottomSheet(
-        amount: (_totalPrice + 500), // Total à payer
-        onPaymentConfirmed: (method, details) {
-          // Gérer la confirmation du paiement ici
-          debugPrint('Paiement confirmé via $method avec détails: $details');
-          _lastPaymentMethod = method; // Stocker la méthode
-          _lastPaymentDetails = details; // Stocker les détails
-          // _showSuccessDialog(); // This will be called AFTER the bottom sheet closes
-        },
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: FlexColors.primary500),
+        ),
+        child: child!,
       ),
     );
-
-    setState(() => _isProcessing = false);
-
-    // Only show success dialog if payment method was selected and context is still valid
-    if (_lastPaymentMethod != null && context.mounted) {
-      _showSuccessDialog();
-    }
+    if (range != null) setState(() { _dateArrivee = range.start; _dateDepart = range.end; });
   }
 
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FlexRadius.lg)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  Future<Uint8List> _generatePdf() async {
+    final fontRegular = await rootBundle.load("assets/fonts/Poppins-Regular.ttf");
+    final fontBold = await rootBundle.load("assets/fonts/Poppins-Bold.ttf");
+    final poppins = pw.Font.ttf(fontRegular);
+    final poppinsBold = pw.Font.ttf(fontBold);
+
+    final pdf = pw.Document();
+    final dateFormat = DateFormat('dd MMMM yyyy', 'fr');
+    final ref = 'FLEX-${DateTime.now().millisecondsSinceEpoch}';
+
+    pdf.addPage(pw.Page(
+      pageTheme: pw.PageTheme(pageFormat: PdfPageFormat.a4),
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Header(level: 0, child: pw.Text('Flex', style: pw.TextStyle(font: poppinsBold, fontSize: 28, color: PdfColor.fromInt(0xFFFF6B00)))),
+          pw.SizedBox(height: 8),
+          pw.Text('Reçu de réservation', style: pw.TextStyle(font: poppinsBold, fontSize: 20)),
+          pw.Divider(),
+          pw.SizedBox(height: 16),
+          pw.Text('Réf: $ref', style: pw.TextStyle(font: poppins, fontSize: 10, color: PdfColor.fromInt(0xFF9E9A92))),
+          pw.SizedBox(height: 20),
+          pw.Text('Logement', style: pw.TextStyle(font: poppinsBold, fontSize: 16)),
+          pw.Text(widget.listing.titre, style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.Text('${widget.listing.quartier}, ${widget.listing.ville}', style: pw.TextStyle(font: poppins, fontSize: 10, color: PdfColor.fromInt(0xFF9E9A92))),
+          pw.SizedBox(height: 16),
+          pw.Text('Séjour', style: pw.TextStyle(font: poppinsBold, fontSize: 16)),
+          pw.Text('Arrivée: ${dateFormat.format(_dateArrivee!)}', style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.Text('Départ: ${dateFormat.format(_dateDepart!)}', style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.Text('$_nombreNuits nuits · $_nombreVoyageurs voyageur(s)', style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.SizedBox(height: 16),
+          pw.Text('Paiement', style: pw.TextStyle(font: poppinsBold, fontSize: 16)),
+          pw.Text('Sous-total: ${_sousTotal.toInt()} FCFA', style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.Text('Frais de service: ${_fraisService.toInt()} FCFA', style: pw.TextStyle(font: poppins, fontSize: 12)),
+          pw.Divider(),
+          pw.Text('Total: ${_total.toInt()} FCFA', style: pw.TextStyle(font: poppinsBold, fontSize: 16, color: PdfColor.fromInt(0xFFFF6B00))),
+          pw.SizedBox(height: 40),
+          pw.Center(child: pw.Text('Merci d\'avoir choisi Flex !', style: pw.TextStyle(font: poppins, fontSize: 12, fontStyle: pw.FontStyle.italic))),
+        ],
+      ),
+    ));
+    return pdf.save();
+  }
+
+  Future<void> _sharePdf() async {
+    final pdfBytes = await _generatePdf();
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/recu-flex.pdf');
+    await file.writeAsBytes(pdfBytes);
+    await Share.shareXFiles([XFile(file.path)], text: 'Reçu Flex');
+  }
+
+  void _goToPayment() {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => PaymentScreen(
+        booking: Booking(
+          id: '', voyageurId: '', listingId: widget.listing.id,
+          hoteId: widget.listing.hoteId,
+          dateArrivee: _dateArrivee!, dateDepart: _dateDepart!,
+          nombreNuits: _nombreNuits, montantTotal: _total,
+          createdAt: DateTime.now(),
+        ),
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Confirmation'),
+        leading: const BackButton(),
+        actions: [
+          IconButton(icon: const Icon(Icons.share_outlined), onPressed: _sharePdf),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(FlexSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle_rounded, color: FlexColors.success, size: 64),
-            const SizedBox(height: FlexSpacing.md),
-            const Text('Demande envoyée !', style: FlexTextStyles.h2),
-            const SizedBox(height: FlexSpacing.sm),
-            Text(
-              'Votre demande de réservation a été envoyée à l\'hôte. Vous recevrez une notification dès qu\'elle sera acceptée.',
-              textAlign: TextAlign.center,
-              style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
-            ),
-            const SizedBox(height: FlexSpacing.lg),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () async {
-                  final pdfBytes = await PdfService().generateReceipt(
-                    listingTitle: widget.listing.titre,
-                    hostName: 'Nom de l\'Hôte', // Placeholder, à remplacer par le vrai nom
-                    startDate: _startDate!,
-                    endDate: _endDate!,
-                    guests: _guests,
-                    nightlyPrice: widget.listing.prixParNuit,
-                    serviceFee: 500,
-                    paymentMethod: _lastPaymentMethod?.name ?? 'Inconnu',
-                    paymentDetails: _lastPaymentDetails ?? {},
-                  );
-                  await Printing.sharePdf(bytes: pdfBytes, filename: 'recu_flex_reservation.pdf');
-                },
-                child: const Text('Voir le reçu'),
+            Container(
+              padding: const EdgeInsets.all(FlexSpacing.md),
+              decoration: BoxDecoration(
+                color: isDark ? FlexColors.neutral800 : Colors.white,
+                borderRadius: BorderRadius.circular(FlexRadius.lg),
+                border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+              ),
+              child: Column(
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 48, height: 48,
+                      decoration: BoxDecoration(
+                        color: FlexColors.primary100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.home_rounded, color: FlexColors.primary500),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(widget.listing.titre, style: FlexTextStyles.h3)),
+                  ]),
+                  const Divider(height: 24),
+                  _buildDateSelector(isDark),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.person_outline, size: 18, color: FlexColors.neutral400),
+                      const SizedBox(width: 8),
+                      Text('Voyageurs', style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500)),
+                      const Spacer(),
+                      _QtyBtn(label: '-', onTap: _nombreVoyageurs > 1 ? () => setState(() => _nombreVoyageurs--) : null),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('$_nombreVoyageurs', style: FlexTextStyles.h3),
+                      ),
+                      _QtyBtn(label: '+', onTap: _nombreVoyageurs < 10 ? () => setState(() => _nombreVoyageurs++) : null),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: FlexSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final pdfBytes = await PdfService().generateReceipt(
-                    listingTitle: widget.listing.titre,
-                    hostName: 'Nom de l\'Hôte', // Placeholder, à remplacer par le vrai nom
-                    startDate: _startDate!,
-                    endDate: _endDate!,
-                    guests: _guests,
-                    nightlyPrice: widget.listing.prixParNuit,
-                    serviceFee: 500,
-                    paymentMethod: _lastPaymentMethod?.name ?? 'Inconnu', // Utiliser la dernière méthode de paiement
-                    paymentDetails: _lastPaymentDetails ?? {}, // Utiliser les derniers détails de paiement
-                  );
-                  await Printing.sharePdf(bytes: pdfBytes, filename: 'recu_flex_reservation.pdf');
-                  if (context.mounted) {
-                    Navigator.of(context).pop(); // dialog
-                    Navigator.of(context).pop(); // confirmation screen
-                  }
-                },
-                child: const Text('Télécharger le reçu'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(FlexSpacing.md),
+              decoration: BoxDecoration(
+                color: isDark ? FlexColors.neutral800 : Colors.white,
+                borderRadius: BorderRadius.circular(FlexRadius.lg),
+                border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+              ),
+              child: Column(
+                children: [
+                  _PriceRow(label: '${widget.listing.prixParNuit.toInt()} FCFA x $_nombreNuits nuits', value: '${_sousTotal.toInt()} FCFA'),
+                  const SizedBox(height: 8),
+                  _PriceRow(label: 'Frais de service (8%)', value: '${_fraisService.toInt()} FCFA'),
+                  const Divider(height: 16),
+                  _PriceRow(label: 'Total', value: '${_total.toInt()} FCFA', isTotal: true),
+                ],
               ),
             ),
-            const SizedBox(height: FlexSpacing.sm),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // dialog
-                  Navigator.of(context).pop(); // confirmation screen
-                },
-                child: const Text('Retour à l\'accueil'),
+              child: ElevatedButton.icon(
+                onPressed: _nombreNuits > 0 ? _goToPayment : null,
+                icon: const Icon(Icons.payment_rounded),
+                label: Text(_nombreNuits > 0 ? 'Payer ${_total.toInt()} FCFA' : 'Choisir les dates'),
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _nombreNuits > 0 ? _sharePdf : null,
+                icon: const Icon(Icons.picture_as_pdf_rounded),
+                label: const Text('Télécharger le reçu PDF'),
               ),
             ),
           ],
@@ -173,159 +213,42 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dateFormat = DateFormat('dd MMM yyyy', 'fr');
-
-    return Scaffold(
-      backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
-      appBar: AppBar(
-        title: const Text('Confirmer la réservation', style: FlexTextStyles.h3),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(FlexSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildDateSelector(bool isDark) {
+    return GestureDetector(
+      onTap: _pickDates,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
+          borderRadius: BorderRadius.circular(FlexRadius.md),
+        ),
+        child: Row(
           children: [
-            // Listing Summary
-            Container(
-              padding: const EdgeInsets.all(FlexSpacing.md),
-              decoration: BoxDecoration(
-                color: isDark ? FlexColors.neutral800 : Colors.white,
-                borderRadius: BorderRadius.circular(FlexRadius.lg),
-                border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200, width: 0.5),
-              ),
-              child: Row(
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
-                      borderRadius: BorderRadius.circular(FlexRadius.md),
-                    ),
-                    child: const Icon(Icons.home_rounded, color: FlexColors.primary500),
-                  ),
-                  const SizedBox(width: FlexSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.listing.titre, style: FlexTextStyles.label.copyWith(fontWeight: FontWeight.bold)),
-                        Text('${widget.listing.quartier}, ${widget.listing.ville}', style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
-                        const SizedBox(height: 4),
-                        Text('${widget.listing.prixParNuit.toInt()} FCFA / nuit', style: FlexTextStyles.label.copyWith(color: FlexColors.primary500)),
-                      ],
-                    ),
-                  ),
+                  Text('Arrivée', style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400)),
+                  Text(_dateArrivee != null ? DateFormat('dd/MM/yyyy').format(_dateArrivee!) : 'Choisir',
+                    style: FlexTextStyles.body.copyWith(fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
-
-            const SizedBox(height: FlexSpacing.xl),
-
-            // Date Selection
-            Text('Dates du séjour', style: FlexTextStyles.h3),
-            const SizedBox(height: FlexSpacing.md),
-            GestureDetector(
-              onTap: () => _selectDateRange(context),
-              child: Container(
-                padding: const EdgeInsets.all(FlexSpacing.md),
-                decoration: BoxDecoration(
-                  color: isDark ? FlexColors.neutral800 : Colors.white,
-                  borderRadius: BorderRadius.circular(FlexRadius.md),
-                  border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
-                ),
-                child: Row(
+            Container(width: 0.5, height: 36, color: FlexColors.neutral400),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 20, color: FlexColors.primary500),
-                    const SizedBox(width: FlexSpacing.md),
-                    Text(
-                      _startDate == null 
-                        ? 'Sélectionner les dates' 
-                        : '${dateFormat.format(_startDate!)} — ${dateFormat.format(_endDate!)}',
-                      style: FlexTextStyles.label,
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.edit_rounded, size: 16, color: FlexColors.neutral400),
+                    Text('Départ', style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400)),
+                    Text(_dateDepart != null ? DateFormat('dd/MM/yyyy').format(_dateDepart!) : 'Choisir',
+                      style: FlexTextStyles.body.copyWith(fontWeight: FontWeight.w500)),
                   ],
                 ),
               ),
             ),
-
-            const SizedBox(height: FlexSpacing.xl),
-
-            // Guests Selection
-            Text('Voyageurs', style: FlexTextStyles.h3),
-            const SizedBox(height: FlexSpacing.md),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md, vertical: 8),
-              decoration: BoxDecoration(
-                color: isDark ? FlexColors.neutral800 : Colors.white,
-                borderRadius: BorderRadius.circular(FlexRadius.md),
-                border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.people_outline_rounded, size: 20, color: FlexColors.primary500),
-                  const SizedBox(width: FlexSpacing.md),
-                  Text('$_guests personne${_guests > 1 ? 's' : ''}', style: FlexTextStyles.label),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _guests > 1 ? () => setState(() => _guests--) : null,
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  IconButton(
-                    onPressed: _guests < 4 ? () => setState(() => _guests++) : null,
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: FlexSpacing.xl),
-
-            // Price Summary
-            Text('Détails du prix', style: FlexTextStyles.h3),
-            const SizedBox(height: FlexSpacing.md),
-            _SummaryRow(
-              label: '${widget.listing.prixParNuit.toInt()} FCFA x $_nights nuits',
-              value: '${_totalPrice.toInt()} FCFA',
-              isDark: isDark,
-            ),
-            _SummaryRow(
-              label: 'Frais de service Flex',
-              value: '500 FCFA',
-              isDark: isDark,
-            ),
-            const Divider(height: FlexSpacing.lg),
-            _SummaryRow(
-              label: 'Total',
-              value: '${(_totalPrice + 500).toInt()} FCFA',
-              isDark: isDark,
-              isTotal: true,
-            ),
-
-            const SizedBox(height: FlexSpacing.xxl),
-
-            // Bottom Action
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: (_startDate != null && !_isProcessing) ? _confirmBooking : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: FlexColors.primary500,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isProcessing
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Confirmer la réservation', style: FlexTextStyles.button),
-              ),
-            ),
-            const SizedBox(height: FlexSpacing.xl),
+            const Icon(Icons.calendar_today_rounded, color: FlexColors.primary500, size: 20),
           ],
         ),
       ),
@@ -333,39 +256,45 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isDark;
-  final bool isTotal;
-
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    required this.isDark,
-    this.isTotal = false,
-  });
+class _PriceRow extends StatelessWidget {
+  final String label; final String value; final bool isTotal;
+  const _PriceRow({required this.label, required this.value, this.isTotal = false});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: isTotal 
-              ? FlexTextStyles.label.copyWith(fontWeight: FontWeight.bold, fontSize: 16)
-              : FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
-          ),
-          Text(
-            value,
-            style: isTotal
-              ? FlexTextStyles.h3.copyWith(color: FlexColors.primary500, fontWeight: FontWeight.bold)
-              : FlexTextStyles.label.copyWith(color: isDark ? FlexColors.neutral200 : FlexColors.neutral700),
-          ),
-        ],
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(
+          fontFamily: 'Poppins', fontSize: isTotal ? 14 : 13,
+          fontWeight: isTotal ? FontWeight.w600 : FontWeight.normal,
+          color: isTotal ? FlexColors.neutral800 : FlexColors.neutral500,
+        )),
+        Text(value, style: TextStyle(
+          fontFamily: 'Poppins', fontSize: isTotal ? 16 : 13,
+          fontWeight: FontWeight.w600,
+          color: isTotal ? FlexColors.primary500 : FlexColors.neutral700,
+        )),
+      ],
+    );
+  }
+}
+
+class _QtyBtn extends StatelessWidget {
+  final String label; final VoidCallback? onTap;
+  const _QtyBtn({required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: onTap != null ? FlexColors.primary500 : FlexColors.neutral200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
       ),
     );
   }

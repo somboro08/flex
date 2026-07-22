@@ -5,7 +5,6 @@ import '../../theme/flex_theme.dart';
 import '../../theme/theme_provider.dart';
 import '../../models/models.dart';
 import '../../widgets/listing_card.dart';
-import '../../widgets/flex_badge.dart';
 import 'notification_screen.dart';
 import 'search_screen.dart';
 import '../profile/profile_screen.dart';

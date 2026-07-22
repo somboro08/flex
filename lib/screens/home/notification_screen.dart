@@ -8,176 +8,83 @@ class NotificationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Mock notifications
-    final List<Map<String, dynamic>> notifications = [
-      {
-        'title': 'Réservation confirmée',
-        'message': 'Votre demande pour "Studio meublé Centre-ville" a été acceptée par l\'hôte.',
-        'time': 'Il y a 2h',
-        'isRead': false,
-        'icon': Icons.check_circle_rounded,
-        'color': FlexColors.success,
-      },
-      {
-        'title': 'Nouvelle offre spéciale',
-        'message': 'Profitez de -10% sur votre prochain séjour à Cotonou avec le code FLEX10.',
-        'time': 'Il y a 5h',
-        'isRead': false,
-        'icon': Icons.local_offer_rounded,
-        'color': FlexColors.warning,
-      },
-      {
-        'title': 'Audit terminé',
-        'message': 'Le logement "Chambre calme chez Madame Akobi" est désormais certifié.',
-        'time': 'Hier',
-        'isRead': true,
-        'icon': Icons.verified_rounded,
-        'color': FlexColors.certified,
-      },
-      {
-        'title': 'Rappel de séjour',
-        'message': 'N\'oubliez pas votre séjour demain à 14:00.',
-        'time': 'Hier',
-        'isRead': true,
-        'icon': Icons.calendar_today_rounded,
-        'color': FlexColors.info,
-      },
+    final notifications = [
+      _NotifData(Icons.check_circle_rounded, 'Réservation confirmée', 'Votre réservation chez Madame Akobi est confirmée.', FlexColors.success, DateTime.now().subtract(const Duration(hours: 2)), false),
+      _NotifData(Icons.payment_rounded, 'Paiement reçu', 'Paiement de 15 000 FCFA effectué avec succès.', FlexColors.info, DateTime.now().subtract(const Duration(hours: 5)), false),
+      _NotifData(Icons.message_rounded, 'Nouveau message', 'L\'hôte vous a envoyé un message.', FlexColors.primary500, DateTime.now().subtract(const Duration(days: 1)), true),
+      _NotifData(Icons.star_rounded, 'Avis reçu', 'Un voyageur a laissé un avis sur votre logement.', FlexColors.warning, DateTime.now().subtract(const Duration(days: 2)), true),
+      _NotifData(Icons.verified_rounded, 'Certification', 'Votre logement a été certifié Flex !', FlexColors.success, DateTime.now().subtract(const Duration(days: 3)), true),
     ];
 
     return Scaffold(
       backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
       appBar: AppBar(
         title: const Text('Notifications', style: FlexTextStyles.h3),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: notifications.isEmpty
-          ? _buildEmptyState(isDark)
-          : ListView.separated(
-              padding: const EdgeInsets.all(FlexSpacing.md),
-              itemCount: notifications.length,
-              separatorBuilder: (context, index) => const SizedBox(height: FlexSpacing.sm),
-              itemBuilder: (context, index) {
-                final notif = notifications[index];
-                return _NotificationItem(notif: notif, isDark: isDark);
-              },
-            ),
-    );
-  }
-
-  Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.notifications_none_rounded,
-            size: 80,
-            color: isDark ? FlexColors.neutral700 : FlexColors.neutral200,
-          ),
-          const SizedBox(height: FlexSpacing.lg),
-          Text(
-            'Aucune notification',
-            style: FlexTextStyles.h2.copyWith(
-              color: isDark ? FlexColors.neutral300 : FlexColors.neutral700,
-            ),
-          ),
-          const SizedBox(height: FlexSpacing.sm),
-          Text(
-            'Vous serez averti ici des activités importantes.',
-            style: FlexTextStyles.body.copyWith(
-              color: FlexColors.neutral500,
-            ),
-            textAlign: TextAlign.center,
-          ),
+        leading: const BackButton(),
+        actions: [
+          TextButton(onPressed: () {}, child: const Text('Tout lu', style: TextStyle(fontSize: 13))),
         ],
       ),
-    );
-  }
-}
-
-class _NotificationItem extends StatelessWidget {
-  final Map<String, dynamic> notif;
-  final bool isDark;
-
-  const _NotificationItem({required this.notif, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(FlexSpacing.md),
-      decoration: BoxDecoration(
-        color: isDark ? FlexColors.neutral800 : FlexColors.neutral0,
-        borderRadius: BorderRadius.circular(FlexRadius.lg),
-        border: Border.all(
-          color: notif['isRead']
-              ? (isDark ? FlexColors.neutral700 : FlexColors.neutral200)
-              : FlexColors.primary500.withOpacity(0.3),
-          width: notif['isRead'] ? 0.5 : 1.5,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(FlexSpacing.md),
+        itemCount: notifications.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, i) {
+          final n = notifications[i];
+          return Container(
+            padding: const EdgeInsets.all(FlexSpacing.md),
             decoration: BoxDecoration(
-              color: (notif['color'] as Color).withOpacity(0.1),
-              shape: BoxShape.circle,
+              color: n.isUnread ? n.color.withOpacity(0.05) : (isDark ? FlexColors.neutral800 : Colors.white),
+              borderRadius: BorderRadius.circular(FlexRadius.lg),
+              border: Border.all(color: n.isUnread ? n.color.withOpacity(0.2) : (isDark ? FlexColors.neutral700 : FlexColors.neutral200)),
             ),
-            child: Icon(
-              notif['icon'],
-              size: 20,
-              color: notif['color'],
-            ),
-          ),
-          const SizedBox(width: FlexSpacing.md),
-          Expanded(
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      notif['title'],
-                      style: FlexTextStyles.label.copyWith(
-                        fontWeight: notif['isRead'] ? FontWeight.w500 : FontWeight.w700,
-                        color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
-                      ),
-                    ),
-                    Text(
-                      notif['time'],
-                      style: FlexTextStyles.caption.copyWith(
-                        color: FlexColors.neutral400,
-                      ),
-                    ),
-                  ],
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: n.color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(n.icon, color: n.color, size: 18),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  notif['message'],
-                  style: FlexTextStyles.body.copyWith(
-                    color: isDark ? FlexColors.neutral400 : FlexColors.neutral500,
-                    fontSize: 13,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(n.title, style: FlexTextStyles.label.copyWith(
+                            fontWeight: n.isUnread ? FontWeight.w600 : FontWeight.normal,
+                          ))),
+                          if (n.isUnread)
+                            Container(width: 8, height: 8, decoration: const BoxDecoration(color: FlexColors.primary500, shape: BoxShape.circle)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(n.body, style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
+                      const SizedBox(height: 4),
+                      Text(_timeAgo(n.time), style: TextStyle(fontSize: 10, color: FlexColors.neutral400)),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-          if (!notif['isRead'])
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(left: 8, top: 6),
-              decoration: const BoxDecoration(
-                color: FlexColors.primary500,
-                shape: BoxShape.circle,
-              ),
-            ),
-        ],
+          );
+        },
       ),
     );
   }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
+    return 'Il y a ${diff.inDays}j';
+  }
+}
+
+class _NotifData {
+  final IconData icon; final String title; final String body;
+  final Color color; final DateTime time; final bool isUnread;
+  _NotifData(this.icon, this.title, this.body, this.color, this.time, this.isUnread);
 }

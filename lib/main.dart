@@ -9,7 +9,22 @@ import 'theme/theme_provider.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/home/map_screen.dart';
+import 'screens/home/notification_screen.dart';
 import 'screens/payment/payment_screen.dart';
+import 'screens/hote/hote_dashboard_screen.dart';
+import 'screens/booking/my_bookings_screen.dart';
+import 'screens/booking/review_screen.dart';
+import 'screens/profile/profile_screen.dart';
+import 'screens/profile/favorites_screen.dart';
+import 'screens/profile/settings_screen.dart';
+import 'screens/profile/identity_verification_screen.dart';
+import 'screens/profile/support_screen.dart';
+import 'screens/listing/listing_detail_screen.dart';
+import 'screens/listing/all_listings_screen.dart';
+import 'screens/chat/chat_screen.dart';
+import 'screens/agent/agent_audit_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +57,15 @@ class FlexApp extends StatelessWidget {
         '/auth': (_) => AuthScreen(),
         '/home': (_) => HomeScreen(),
         '/payment': (_) => PaymentScreen(),
+        '/map': (_) => const MapScreen(),
+        '/notifications': (_) => const NotificationScreen(),
+        '/hote-dashboard': (_) => const HoteDashboardScreen(),
+        '/bookings': (_) => const MyBookingsScreen(),
+        '/profile': (_) => const ProfileScreen(),
+        '/favorites': (_) => const FavoritesScreen(),
+        '/settings': (_) => const SettingsScreen(),
+        '/identity-verification': (_) => const IdentityVerificationScreen(),
+        '/support': (_) => const SupportScreen(),
       },
     );
   }

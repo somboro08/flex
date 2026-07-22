@@ -98,7 +98,7 @@ class Listing {
   final CertificationStatus certification;
   final double note;
   final int nombreAvis;
-  final bool isDisponible;
+  bool isDisponible;
   final DateTime createdAt;
 
   Listing({

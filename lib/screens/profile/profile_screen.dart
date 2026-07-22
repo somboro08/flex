@@ -1,183 +1,176 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/flex_theme.dart';
-import '../../services/auth_service.dart';
-import '../booking/my_bookings_screen.dart';
-import 'favorites_screen.dart'; // Import the new FavoritesScreen
-import 'identity_verification_screen.dart'; // Import the new IdentityVerificationScreen
+import 'identity_verification_screen.dart';
+import 'favorites_screen.dart';
 import 'settings_screen.dart';
 import 'support_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-              }
-            },
-            child: const Text('Déconnexion', style: TextStyle(color: FlexColors.error)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = FirebaseAuth.instance.currentUser;
-    final String displayName = user?.displayName ?? 'Utilisateur Flex';
-    final String contactInfo = user?.email ?? user?.phoneNumber ?? 'Aucun contact';
-    final String initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
 
     return Scaffold(
       backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
       appBar: AppBar(
         title: const Text('Profil', style: FlexTextStyles.h3),
         centerTitle: true,
-        elevation: 0,
         backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: FlexColors.neutral500),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const SizedBox(height: FlexSpacing.lg),
-            // Header
-            Center(
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: FlexColors.primary100,
-                        child: Text(
-                          initial,
-                          style: FlexTextStyles.display.copyWith(
-                            color: FlexColors.primary600,
-                            fontSize: 40,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: FlexColors.primary500,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.edit_rounded, size: 18, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: FlexSpacing.md),
-                  Text(
-                    displayName,
-                    style: FlexTextStyles.h2.copyWith(
-                      color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
-                    ),
-                  ),
-                  Text(
-                    contactInfo,
-                    style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
-                  ),
-                ],
-              ),
-            ),
+            _buildProfileHeader(isDark),
+            const SizedBox(height: 8),
+            _buildStats(isDark),
+            const SizedBox(height: 24),
+            _buildMenuSection(context, isDark),
+          ],
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: FlexSpacing.xl),
-
-            // Menu
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
-              child: Column(
-                children: [
-                  _ProfileMenuItem(
-                    icon: Icons.bookmark_outline_rounded,
-                    title: 'Mes Réservations',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const MyBookingsScreen()),
-                      );
-                    },
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.favorite_border_rounded,
-                    title: 'Mes Favoris',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => FavoritesScreen()),
-                      );
-                    },
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.verified_user_outlined,
-                    title: 'Vérification d\'identité',
-                    isDark: isDark,
-                    trailing: const Icon(Icons.error_outline_rounded, color: FlexColors.warning, size: 20),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => IdentityVerificationScreen()),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: FlexSpacing.lg),
-                  _ProfileMenuItem(
-                    icon: Icons.settings_outlined,
-                    title: 'Paramètres',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                      );
-                    },
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.help_outline_rounded,
-                    title: 'Aide & Support',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SupportScreen()),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: FlexSpacing.lg),
-                  _ProfileMenuItem(
-                    icon: Icons.logout_rounded,
-                    title: 'Déconnexion',
-                    isDark: isDark,
-                    textColor: FlexColors.error,
-                    iconColor: FlexColors.error,
-                    onTap: () => _showLogoutDialog(context),
-                  ),
-                ],
+  Widget _buildProfileHeader(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.all(FlexSpacing.md),
+      padding: const EdgeInsets.all(FlexSpacing.lg),
+      decoration: BoxDecoration(
+        color: isDark ? FlexColors.neutral800 : Colors.white,
+        borderRadius: BorderRadius.circular(FlexRadius.lg),
+        border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+      ),
+      child: Row(
+        children: [
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: FlexColors.primary100,
+                child: Text('JD', style: FlexTextStyles.h2.copyWith(color: FlexColors.primary500)),
               ),
+              Positioned(
+                bottom: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
+                    color: FlexColors.success, shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 10, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Jean Dupont', style: FlexTextStyles.h2.copyWith(
+                  color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
+                )),
+                const SizedBox(height: 4),
+                Text('Voyageur', style: FlexTextStyles.caption.copyWith(
+                  color: FlexColors.primary500, fontWeight: FontWeight.w600,
+                )),
+                const SizedBox(height: 4),
+                Text('+229 97 00 00 00', style: FlexTextStyles.caption.copyWith(
+                  color: FlexColors.neutral500,
+                )),
+              ],
             ),
+          ),
+          OutlinedButton(
+            onPressed: () {},
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+            child: const Text('Modifier', style: TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStats(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
+      child: Row(
+        children: [
+          _MiniStat(icon: Icons.bookmark_rounded, value: '3', label: 'Voyages'),
+          _MiniStat(icon: Icons.star_rounded, value: '4.8', label: 'Note'),
+          _MiniStat(icon: Icons.favorite_rounded, value: '5', label: 'Favoris'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuSection(BuildContext context, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
+      child: Column(
+        children: [
+          _MenuTile(
+            icon: Icons.verified_outlined, title: 'Vérification d\'identité',
+            subtitle: 'Passez à la vérification pour plus de confiance',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IdentityVerificationScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.favorite_border_rounded, title: 'Mes favoris',
+            subtitle: 'Consultez vos logements sauvegardés',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.receipt_long_outlined, title: 'Mes réservations',
+            subtitle: 'Historique de vos séjours',
+            onTap: () => Navigator.pushNamed(context, '/bookings'),
+          ),
+          _MenuTile(
+            icon: Icons.support_outlined, title: 'Support',
+            subtitle: 'Aide et assistance',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.info_outline, title: 'À propos de Flex',
+            subtitle: 'Version 1.0.0',
+            onTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final IconData icon; final String value; final String label;
+  const _MiniStat({required this.icon, required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: FlexColors.primary500.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(FlexRadius.md),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: FlexColors.primary500),
+            const SizedBox(height: 4),
+            Text(value, style: const TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w700, color: FlexColors.primary500)),
+            Text(label, style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
           ],
         ),
       ),
@@ -185,50 +178,33 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileMenuItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool isDark;
-  final Color? textColor;
-  final Color? iconColor;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  const _ProfileMenuItem({
-    required this.icon,
-    required this.title,
-    required this.isDark,
-    this.textColor,
-    this.iconColor,
-    this.trailing,
-    this.onTap,
-  });
+class _MenuTile extends StatelessWidget {
+  final IconData icon; final String title; final String subtitle; final VoidCallback onTap;
+  const _MenuTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      margin: const EdgeInsets.only(bottom: FlexSpacing.sm),
-      decoration: BoxDecoration(
-        color: isDark ? FlexColors.neutral800 : Colors.white,
-        borderRadius: BorderRadius.circular(FlexRadius.lg),
-        border: Border.all(
-          color: isDark ? FlexColors.neutral700 : FlexColors.neutral200,
-          width: 0.5,
-        ),
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(icon, color: iconColor ?? FlexColors.primary500),
-        title: Text(
-          title,
-          style: FlexTextStyles.label.copyWith(
-            color: textColor ?? (isDark ? FlexColors.neutral0 : FlexColors.neutral800),
+        onTap: onTap,
+        leading: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: FlexColors.primary500.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Icon(icon, color: FlexColors.primary500, size: 20),
         ),
-        trailing: trailing ?? Icon(
-          Icons.chevron_right_rounded,
-          color: isDark ? FlexColors.neutral600 : FlexColors.neutral300,
+        title: Text(title, style: FlexTextStyles.label.copyWith(
+          color: isDark ? FlexColors.neutral0 : FlexColors.neutral700, fontWeight: FontWeight.w600,
+        )),
+        subtitle: Text(subtitle, style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: FlexColors.neutral400),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FlexRadius.md),
         ),
-        onTap: onTap ?? () {},
       ),
     );
   }
