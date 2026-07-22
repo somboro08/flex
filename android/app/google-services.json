@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1044360817172",
+    "project_id": "flex-ba0a4",
+    "storage_bucket": "flex-ba0a4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1044360817172:android:0a3a8b0705b4bb67ec9501",
+        "android_client_info": {
+          "package_name": "com.example.flex"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-G7zf-Rle_DKuYUyyIblws1OXHsEtFr8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
