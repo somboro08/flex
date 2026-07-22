@@ -58,6 +58,9 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
           children: [
             _buildHeader(isDark),
             _buildStats(isDark),
+            const SizedBox(height: 4),
+            _buildRentalManagementBanner(isDark),
+            const SizedBox(height: 8),
             _buildTabBar(isDark),
             Expanded(
               child: _selectedTab == 0
@@ -131,6 +134,51 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
             label: 'Revenus', color: FlexColors.success,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRentalManagementBanner(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, '/hote-rentals'),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.all(FlexSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(FlexRadius.lg),
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [FlexColors.neutral800, const Color(0xFF1E3A5F)]
+                  : [const Color(0xFFE8F0FE), const Color(0xFFD6E4FF)],
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: FlexColors.primary500.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.people_rounded, color: FlexColors.primary600, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Gestion locative', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    Text('Locataires, paiements, échéances',
+                      style: TextStyle(fontSize: 12, color: FlexColors.neutral500)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: FlexColors.primary500),
+            ],
+          ),
+        ),
       ),
     );
   }

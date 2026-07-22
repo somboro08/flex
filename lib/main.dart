@@ -24,6 +24,11 @@ import 'screens/listing/listing_detail_screen.dart';
 import 'screens/listing/all_listings_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/agent/agent_audit_screen.dart';
+import 'screens/hote/hote_rentals_screen.dart';
+import 'screens/locataire/locataire_rentals_screen.dart';
+import 'screens/locataire/advance_payment_screen.dart';
+import 'screens/locataire/refund_request_screen.dart';
+import 'screens/locataire/renew_booking_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 void main() async {
@@ -66,6 +71,11 @@ class FlexApp extends StatelessWidget {
         '/settings': (_) => const SettingsScreen(),
         '/identity-verification': (_) => const IdentityVerificationScreen(),
         '/support': (_) => const SupportScreen(),
+        '/hote-rentals': (_) => const HoteRentalsScreen(),
+        '/locataire-rentals': (_) => const LocataireRentalsScreen(),
+        '/advance-payment': (_) => const AdvancePaymentScreen(),
+        '/refund-request': (_) => const RefundRequestScreen(),
+        '/renew-booking': (_) => const RenewBookingScreen(),
       },
     );
   }

@@ -131,6 +131,11 @@ class ProfileScreen extends StatelessWidget {
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesScreen())),
           ),
           _MenuTile(
+            icon: Icons.home_work_rounded, title: 'Mes locations',
+            subtitle: 'Gérez vos locations, paiements et renouvellements',
+            onTap: () => Navigator.pushNamed(context, '/locataire-rentals'),
+          ),
+          _MenuTile(
             icon: Icons.receipt_long_outlined, title: 'Mes réservations',
             subtitle: 'Historique de vos séjours',
             onTap: () => Navigator.pushNamed(context, '/bookings'),
