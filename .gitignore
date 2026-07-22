@@ -12,6 +12,13 @@
 .swiftpm/
 migrate_working_dir/
 
+# Go
+/bin/
+/tmp/
+*.exe
+*.test
+*.out
+
 # IntelliJ related
 *.iml
 *.ipr
