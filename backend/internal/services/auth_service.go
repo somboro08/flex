@@ -16,7 +16,6 @@ import (
 	"github.com/somboro08/flex-api/pkg/jwt"
 	"github.com/somboro08/flex-api/pkg/validator"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 var (
@@ -82,6 +81,17 @@ type LoginRequest struct {
 type AuthResponse struct {
 	User         *models.User `json:"user"`
 	TokenPair    *jwt.TokenPair `json:"tokens"`
+}
+
+func RoleFromString(role string) models.UserRole {
+	switch role {
+	case "hote":
+		return models.RoleHote
+	case "agent":
+		return models.RoleAgent
+	default:
+		return models.RoleVoyageur
+	}
 }
 
 func (s *AuthService) Register(ctx context.Context, req RegisterRequest, deviceInfo, ipAddress, userAgent string) (*AuthResponse, error) {
