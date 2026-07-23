@@ -13,6 +13,7 @@ import 'budget_search_screen.dart';
 import '../../utils/rental_utils.dart';
 import '../profile/profile_screen.dart';
 import '../listing/all_listings_screen.dart';
+import '../listing/listing_detail_screen.dart';
 import '../booking/my_bookings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -294,18 +295,73 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: FlexSpacing.sm),
                     SizedBox(
-                      height: 140,
+                      height: 120,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _recentlyViewed.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) => SizedBox(
-                          width: 200,
-                          child: ListingCard(
-                            listing: _recentlyViewed[i],
-                            isFavorite: _favorites.contains(_recentlyViewed[i].id),
-                          ),
-                        ),
+                        itemBuilder: (_, i) {
+                          final l = _recentlyViewed[i];
+                          final isFav = _favorites.contains(l.id);
+                          return SizedBox(
+                            width: 180,
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => ListingDetailScreen(listing: l),
+                              )),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isDark ? FlexColors.neutral800 : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Stack(
+                                        children: [
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
+                                              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                                            ),
+                                            child: const Center(child: Icon(Icons.home_rounded, size: 32)),
+                                          ),
+                                          Positioned(
+                                            top: 6, right: 6,
+                                            child: GestureDetector(
+                                              onTap: () async {
+                                                await StorageService.toggleFavorite(l.id);
+                                                _refresh();
+                                              },
+                                              child: Container(
+                                                width: 28, height: 28,
+                                                decoration: BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
+                                                child: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 14, color: isFav ? Colors.red : Colors.white),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(l.titre, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                          const SizedBox(height: 2),
+                                          Text('${l.prixParNuit.toInt()} FCFA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: FlexColors.primary500)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: FlexSpacing.lg),

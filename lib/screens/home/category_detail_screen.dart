@@ -152,21 +152,25 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.max,
                     children: [
-                      Text(p.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
-                      Text(p.subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text('Voir l\'offre', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                    Flexible(
+                      child: Text(p.title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(height: 4),
+                    Flexible(
+                      child: Text(p.subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ],
+                      child: const Text('Voir l\'offre', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                    ),
+                  ],
                   ),
                 ),
               ],
