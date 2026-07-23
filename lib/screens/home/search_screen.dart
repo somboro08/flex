@@ -4,14 +4,15 @@ import '../../models/models.dart';
 import '../../widgets/listing_card.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final String? initialQuery;
+  const SearchScreen({super.key, this.initialQuery});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final _searchController = TextEditingController();
+  late final _searchController = TextEditingController(text: widget.initialQuery);
   String _selectedCategory = 'Tout';
   RangeValues _prixRange = const RangeValues(3000, 50000);
   String _selectedVille = 'Toutes';

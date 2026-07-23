@@ -118,17 +118,17 @@ class _HomeScreenState extends State<HomeScreen> {
             title: Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: FlexColors.primary500,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Center(
                     child: SvgPicture.asset(
                       'assets/icons/flex.svg',
-                      width: 18,
-                      height: 18,
+                      width: 16,
+                      height: 16,
                       colorFilter: const ColorFilter.mode(
                         Colors.white,
                         BlendMode.srcIn,
@@ -136,45 +136,75 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-               
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => const SearchScreen()),
+                    ),
+                    child: Container(
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? FlexColors.neutral800 : FlexColors.neutral100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200, width: 0.5),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search_rounded, size: 14, color: FlexColors.neutral400),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Ville, quartier...',
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                filled: false,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                hintStyle: TextStyle(fontSize: 12, color: FlexColors.neutral400),
+                              ),
+                              style: TextStyle(fontSize: 12, color: isDark ? FlexColors.neutral0 : FlexColors.neutral800),
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (v) {
+                                if (v.trim().isNotEmpty) {
+                                  Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) => SearchScreen(initialQuery: v.trim()),
+                                  ));
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             actions: [
-              // Theme toggle
               IconButton(
                 onPressed: themeProvider.toggleTheme,
                 icon: Icon(
                   themeProvider.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                  color: FlexColors.neutral500,
+                  color: FlexColors.neutral500, size: 20,
                 ),
               ),
-              // Notifications
               IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const NotificationScreen()),
-                  );
-                },
-                icon: const Icon(Icons.notifications_outlined, color: FlexColors.neutral500),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen())),
+                icon: const Icon(Icons.notifications_outlined, color: FlexColors.neutral500, size: 20),
               ),
-              // Profile
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                    );
-                  },
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
                   child: CircleAvatar(
-                    radius: 16,
+                    radius: 14,
                     backgroundColor: FlexColors.primary100,
-                    child: Text(
-                      'G',
-                      style: FlexTextStyles.label.copyWith(color: FlexColors.primary600),
-                    ),
+                    child: Text('G', style: TextStyle(fontSize: 11, color: FlexColors.primary600, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),
@@ -197,49 +227,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'Trouvez un logement certifié Flex',
                     style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
-                  ),
-                  const SizedBox(height: FlexSpacing.md),
-
-                  // Search bar
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark ? FlexColors.neutral800 : FlexColors.neutral0,
-                      borderRadius: BorderRadius.circular(FlexRadius.lg),
-                      border: Border.all(
-                        color: isDark ? FlexColors.neutral700 : FlexColors.neutral200,
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search_rounded, color: FlexColors.neutral400),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: 'Rechercher une ville, un quartier...',
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              filled: false,
-                              hintStyle: FlexTextStyles.body.copyWith(
-                                color: FlexColors.neutral400,
-                              ),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: FlexColors.primary500,
-                            borderRadius: BorderRadius.circular(FlexRadius.md),
-                          ),
-                          child: const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
-                        ),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: FlexSpacing.md),
 
