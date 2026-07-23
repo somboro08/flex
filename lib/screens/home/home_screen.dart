@@ -7,6 +7,9 @@ import '../../models/models.dart';
 import '../../widgets/listing_card.dart';
 import 'notification_screen.dart';
 import 'search_screen.dart';
+import 'category_detail_screen.dart';
+import 'budget_search_screen.dart';
+import '../../utils/rental_utils.dart';
 import '../profile/profile_screen.dart';
 import '../listing/all_listings_screen.dart';
 import '../booking/my_bookings_screen.dart';
@@ -21,10 +24,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final _searchController = TextEditingController();
-  String _selectedVille = 'Parakou';
 
-  final List<String> _villes = [
-    'Parakou', 'Cotonou', 'Abomey', 'Natitingou', 'Bohicon', 'Porto-Novo',
+  final List<_CategoryData> _categories = [
+    _CategoryData('Location', Icons.home_rounded, '120+', 'location'),
+    _CategoryData('Cohabitation', Icons.people_rounded, '45+', 'cohabitation'),
+    _CategoryData('Court séjour', Icons.flash_on_rounded, '80+', 'court_sejour'),
+    _CategoryData('~ 10 000 FCFA', Icons.monetization_on_rounded, '200+', 'petit_budget'),
+    _CategoryData('Villa', Icons.villa_rounded, '25+', 'villa'),
+    _CategoryData('Espace', Icons.event_rounded, '15+', 'espace'),
+    _CategoryData('Club', Icons.nightlife_rounded, '10+', 'club'),
+    _CategoryData('Mon budget', Icons.calculate_rounded, '💰', 'budget', isBudget: true),
   ];
 
   // Mock data
@@ -230,65 +239,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: FlexSpacing.md),
 
-                  // City filter chips
+                  // Category cards 9:16 horizontal scroll
                   SizedBox(
-                    height: 36,
+                    height: 210,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: _villes.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, i) {
-                        final isSelected = _villes[i] == _selectedVille;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedVille = _villes[i]),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? FlexColors.primary500
-                                  : isDark ? FlexColors.neutral800 : FlexColors.neutral0,
-                              borderRadius: BorderRadius.circular(FlexRadius.full),
-                              border: Border.all(
-                                color: isSelected
-                                    ? FlexColors.primary500
-                                    : isDark ? FlexColors.neutral700 : FlexColors.neutral200,
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Text(
-                              _villes[i],
-                              style: FlexTextStyles.label.copyWith(
-                                color: isSelected
-                                    ? Colors.white
-                                    : isDark ? FlexColors.neutral300 : FlexColors.neutral600,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: FlexSpacing.lg),
-
-                  // Stats row
-                  Container(
-                    padding: const EdgeInsets.all(FlexSpacing.md),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [FlexColors.primary500, FlexColors.primary600],
+                      itemCount: _categories.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) => _CategoryCard(
+                        category: _categories[i],
+                        isDark: isDark,
+                        onTap: () {
+                          if (_categories[i].route == 'budget') {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const BudgetSearchScreen()));
+                          } else {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => CategoryDetailScreen(category: _categories[i].label),
+                            ));
+                          }
+                        },
                       ),
-                      borderRadius: BorderRadius.circular(FlexRadius.lg),
-                    ),
-                    child: Row(
-                      children: [
-                        _StatItem(value: '50+', label: 'Logements\ncertifiés'),
-                        _divider(),
-                        _StatItem(value: '3', label: 'Agents\nterrain'),
-                        _divider(),
-                        _StatItem(value: '4.7★', label: 'Note\nmoyenne'),
-                      ],
                     ),
                   ),
                   const SizedBox(height: FlexSpacing.lg),
@@ -298,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Disponibles à $_selectedVille',
+                        'Populaires',
                         style: FlexTextStyles.h3.copyWith(
                           color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
                         ),
@@ -309,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => AllListingsScreen(
-                                title: 'Disponibles à $_selectedVille',
+                                title: 'Logements disponibles',
                                 listings: _featuredListings,
                               ),
                             ),
@@ -344,13 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _divider() => Container(
-    width: 0.5,
-    height: 40,
-    color: Colors.white30,
-    margin: const EdgeInsets.symmetric(horizontal: 16),
-  );
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -358,29 +321,54 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-  const _StatItem({required this.value, required this.label});
+class _CategoryData {
+  final String label; final IconData icon; final String count; final String route; final bool isBudget;
+  const _CategoryData(this.label, this.icon, this.count, this.route, {this.isBudget = false});
+}
+
+class _CategoryCard extends StatelessWidget {
+  final _CategoryData category; final bool isDark; final VoidCallback onTap;
+  const _CategoryCard({required this.category, required this.isDark, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: FlexTextStyles.h3.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
+    final w = 130.0; final h = 210.0; final b = category.isBudget;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: w, height: h,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(FlexRadius.lg),
+          gradient: b ? const LinearGradient(colors: [FlexColors.primary500, FlexColors.primary600]) : null,
+          color: b ? null : (isDark ? FlexColors.neutral800 : Colors.white),
+          border: !b ? Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200) : null,
+          boxShadow: b ? [BoxShadow(color: FlexColors.primary500.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))] : null,
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: b ? null : GeometricBackgroundPainter(color: FlexColors.primary500, opacity: 0.04))),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: b ? Colors.white.withValues(alpha: 0.15) : FlexColors.primary500.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10)),
+                    child: Icon(category.icon, size: 20, color: b ? Colors.white : FlexColors.primary500),
+                  ),
+                  const Spacer(),
+                  Text(category.count, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: b ? Colors.white : (isDark ? FlexColors.neutral0 : FlexColors.neutral800))),
+                  const SizedBox(height: 4),
+                  Text(category.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: b ? Colors.white70 : (isDark ? FlexColors.neutral400 : FlexColors.neutral600))),
+                  if (b) ...[const SizedBox(height: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)), child: const Text('Tapez →', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500)))],
+                ],
+              ),
             ),
-          ),
-          Text(
-            label,
-            style: FlexTextStyles.caption.copyWith(color: Colors.white70),
-            textAlign: TextAlign.center,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
