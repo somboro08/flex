@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
 import '../../utils/rental_utils.dart';
-import '../../widgets/listing_card.dart';
 import '../listing/listing_detail_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -83,26 +82,16 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
-                    final listing = filtered[i];
-                    final offset = i.isEven ? 0.0 : 20.0;
-                    return Padding(
-                      padding: EdgeInsets.only(top: i > 0 ? (i.isEven ? 0 : 20) : 0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: i.isEven
-                                ? _buildListingCard(listing, isDark)
-                                : const SizedBox.shrink(),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: i.isEven
-                                ? const SizedBox.shrink()
-                                : _buildListingCard(listing, isDark),
-                          ),
-                        ],
-                      ),
+                    if (i.isOdd) return const SizedBox.shrink();
+                    final first = filtered[i];
+                    final second = i + 1 < filtered.length ? filtered[i + 1] : null;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildListingCard(first, isDark, shift: 0)),
+                        const SizedBox(width: 10),
+                        Expanded(child: second != null ? _buildListingCard(second, isDark, shift: 24) : const SizedBox.shrink()),
+                      ],
                     );
                   },
                   childCount: filtered.length,
@@ -277,54 +266,53 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     );
   }
 
-  Widget _buildListingCard(Listing listing, bool isDark) {
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListingDetailScreen(listing: listing))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? FlexColors.neutral800 : Colors.white,
-          borderRadius: BorderRadius.circular(FlexRadius.md),
-          border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 80,
-              decoration: BoxDecoration(
-                color: FlexColors.primary100,
-                borderRadius: BorderRadius.circular(8),
+  Widget _buildListingCard(Listing listing, bool isDark, {double shift = 0}) {
+    final w = (MediaQuery.of(context).size.width - FlexSpacing.md * 2 - 10) / 2;
+    final h = w * 16 / 9;
+    return Padding(
+      padding: EdgeInsets.only(top: shift),
+      child: GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListingDetailScreen(listing: listing))),
+        child: Container(
+          width: w, height: h,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isDark ? FlexColors.neutral800 : Colors.white,
+            borderRadius: BorderRadius.circular(FlexRadius.md),
+            border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: FlexColors.primary100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(child: Icon(Icons.image_rounded, color: FlexColors.primary300, size: 24)),
+                ),
               ),
-              child: Center(child: Icon(Icons.image_rounded, color: FlexColors.primary300, size: 28)),
-            ),
-            const SizedBox(height: 8),
-            Text(listing.titre, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(Icons.location_on_rounded, size: 10, color: FlexColors.neutral400),
+              const SizedBox(height: 6),
+              Text(listing.titre, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Row(children: [
+                Icon(Icons.location_on_rounded, size: 8, color: FlexColors.neutral400),
                 const SizedBox(width: 2),
-                Text(listing.quartier, style: TextStyle(fontSize: 10, color: FlexColors.neutral500)),
-                const Spacer(),
-                if (listing.isCertified)
-                  Icon(Icons.verified_rounded, size: 12, color: FlexColors.certified),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Text('${listing.prixParNuit.toInt()} FCFA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: FlexColors.primary500)),
-                const Text('/nuit', style: TextStyle(fontSize: 9, color: FlexColors.neutral400)),
+                Expanded(child: Text(listing.quartier, style: TextStyle(fontSize: 9, color: FlexColors.neutral500), overflow: TextOverflow.ellipsis)),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                Text('${listing.prixParNuit.toInt()} FCFA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: FlexColors.primary500)),
                 const Spacer(),
                 Row(children: [
-                  Icon(Icons.star_rounded, size: 10, color: FlexColors.warning),
-                  Text(listing.note.toString(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                  Icon(Icons.star_rounded, size: 9, color: FlexColors.warning),
+                  Text(listing.note.toString(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
                 ]),
-              ],
-            ),
-          ],
+              ]),
+            ],
+          ),
         ),
       ),
     );
