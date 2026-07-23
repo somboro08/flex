@@ -86,9 +86,12 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             backgroundColor: isDark ? FlexColors.neutral800 : FlexColors.neutral0,
             leading: Padding(
               padding: const EdgeInsets.all(8),
-              child: CircleAvatar(
-                backgroundColor: Colors.black.withOpacity(0.4),
-                child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black.withOpacity(0.4),
+                  child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                ),
               ),
             ),
             actions: [

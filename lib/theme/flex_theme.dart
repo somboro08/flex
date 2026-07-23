@@ -153,6 +153,12 @@ ThemeData flexLightTheme() {
       error: FlexColors.error,
     ),
     scaffoldBackgroundColor: FlexColors.neutral50,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: FlexColors.neutral0,
       foregroundColor: FlexColors.neutral800,
@@ -289,6 +295,12 @@ ThemeData flexDarkTheme() {
       error: FlexColors.error,
     ),
     scaffoldBackgroundColor: FlexColors.neutral900,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: FlexColors.neutral800,
       foregroundColor: FlexColors.neutral0,

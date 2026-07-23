@@ -28,6 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   Set<String> _favorites = {};
   List<Listing> _recentlyViewed = [];
+  int _placeholderIndex = 0;
+
+  final _placeholders = ['Ville, quartier...', 'Budget ?', 'Catégorie ?', 'WiFi, parking...'];
 
   final List<_CategoryData> _categories = [
     _CategoryData('Location', Icons.home_rounded, '120+', 'location'),
@@ -44,6 +47,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _refresh();
+    _cyclePlaceholder();
+  }
+
+  void _cyclePlaceholder() async {
+    while (mounted) {
+      await Future.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
+      setState(() => _placeholderIndex = (_placeholderIndex + 1) % _placeholders.length);
+    }
   }
 
   Future<void> _refresh() async {
@@ -186,27 +198,44 @@ class _HomeScreenState extends State<HomeScreen> {
                           Icon(Icons.search_rounded, size: 14, color: FlexColors.neutral400),
                           const SizedBox(width: 6),
                           Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              decoration: InputDecoration(
-                                hintText: 'Ville, quartier...',
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                filled: false,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                                hintStyle: TextStyle(fontSize: 12, color: FlexColors.neutral400),
-                              ),
-                              style: TextStyle(fontSize: 12, color: isDark ? FlexColors.neutral0 : FlexColors.neutral800),
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: (v) {
-                                if (v.trim().isNotEmpty) {
-                                  Navigator.push(context, MaterialPageRoute(
-                                    builder: (_) => SearchScreen(initialQuery: v.trim()),
-                                  ));
-                                }
-                              },
+                            child: Stack(
+                              children: [
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 500),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) {
+                                    final slide = Tween(begin: const Offset(0, 0.3), end: Offset.zero).animate(animation);
+                                    final fade = Tween(begin: 0.0, end: 1.0).animate(animation);
+                                    return SlideTransition(position: slide, child: FadeTransition(opacity: fade, child: child));
+                                  },
+                                  child: Text(
+                                    _placeholders[_placeholderIndex],
+                                    key: ValueKey(_placeholderIndex),
+                                    style: const TextStyle(fontSize: 12, color: FlexColors.neutral400),
+                                  ),
+                                ),
+                                TextField(
+                                  controller: _searchController,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    filled: false,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  style: const TextStyle(fontSize: 12, color: Colors.transparent),
+                                  textInputAction: TextInputAction.search,
+                                  onSubmitted: (v) {
+                                    if (v.trim().isNotEmpty) {
+                                      Navigator.push(context, MaterialPageRoute(
+                                        builder: (_) => SearchScreen(initialQuery: v.trim()),
+                                      ));
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
