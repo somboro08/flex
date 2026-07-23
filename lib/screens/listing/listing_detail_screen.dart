@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
 import '../../widgets/flex_badge.dart';
+import 'visit_request_screen.dart';
 
 class ListingDetailScreen extends StatefulWidget {
   final Listing listing;
@@ -331,7 +332,13 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: FlexSpacing.md),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VisitRequestScreen(listing: listing))),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
+              child: const Text('Visite', style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton(
                 onPressed: _nombreNuits > 0

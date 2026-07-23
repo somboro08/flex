@@ -25,6 +25,7 @@ import 'screens/listing/all_listings_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/agent/agent_audit_screen.dart';
 import 'screens/hote/hote_rentals_screen.dart';
+import 'screens/hote/hote_visit_requests_screen.dart';
 import 'screens/locataire/locataire_rentals_screen.dart';
 import 'screens/locataire/advance_payment_screen.dart';
 import 'screens/locataire/refund_request_screen.dart';
@@ -72,6 +73,7 @@ class FlexApp extends StatelessWidget {
         '/identity-verification': (_) => const IdentityVerificationScreen(),
         '/support': (_) => const SupportScreen(),
         '/hote-rentals': (_) => const HoteRentalsScreen(),
+        '/hote-visits': (_) => const HoteVisitRequestsScreen(),
         '/locataire-rentals': (_) => const LocataireRentalsScreen(),
         '/advance-payment': (_) => const AdvancePaymentScreen(),
         '/refund-request': (_) => const RefundRequestScreen(),

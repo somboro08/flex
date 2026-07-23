@@ -60,6 +60,7 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
             _buildStats(isDark),
             const SizedBox(height: 4),
             _buildRentalManagementBanner(isDark),
+            _buildVisitRequestBanner(isDark),
             const SizedBox(height: 8),
             _buildTabBar(isDark),
             Expanded(
@@ -176,6 +177,38 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
                 ),
               ),
               const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: FlexColors.primary500),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisitRequestBanner(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(left: FlexSpacing.md, right: FlexSpacing.md, top: 4),
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, '/hote-visits'),
+        child: Container(
+          padding: const EdgeInsets.all(FlexSpacing.md),
+          decoration: BoxDecoration(
+            color: isDark ? FlexColors.neutral800 : Colors.white,
+            borderRadius: BorderRadius.circular(FlexRadius.lg),
+            border: Border.all(color: isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+          ),
+          child: Row(
+            children: [
+              Container(width: 36, height: 36, decoration: BoxDecoration(color: FlexColors.warning.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.calendar_today_rounded, color: FlexColors.warning, size: 18)),
+              const SizedBox(width: 10),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Demandes de visite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('2 en attente · Gérez les visites', style: TextStyle(fontSize: 11, color: FlexColors.neutral500)),
+                ],
+              )),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: FlexColors.neutral400),
             ],
           ),
         ),
@@ -488,6 +521,7 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
   late TextEditingController _villeController;
   late TextEditingController _quartierController;
   late TextEditingController _adresseController;
+  TypeLogement _selectedType = TypeLogement.chambre;
 
   @override
   void initState() {
@@ -498,6 +532,19 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
     _villeController = TextEditingController(text: widget.listing?.ville ?? '');
     _quartierController = TextEditingController(text: widget.listing?.quartier ?? '');
     _adresseController = TextEditingController(text: widget.listing?.adresse ?? '');
+  }
+
+  String _typeLabel(TypeLogement t) {
+    switch (t) {
+      case TypeLogement.chambre: return 'Chambre';
+      case TypeLogement.studio: return 'Studio';
+      case TypeLogement.appartement: return 'Appartement';
+      case TypeLogement.villa: return 'Villa';
+      case TypeLogement.cohabitation: return 'Cohabitation';
+      case TypeLogement.espace: return 'Espace';
+      case TypeLogement.club: return 'Club';
+      case TypeLogement.autre: return 'Autre';
+    }
   }
 
   @override
@@ -543,6 +590,15 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'Description'),
                 validator: (v) => v == null || v.isEmpty ? 'Requis' : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<TypeLogement>(
+                value: _selectedType,
+                decoration: const InputDecoration(labelText: 'Type de logement'),
+                items: TypeLogement.values.map((t) => DropdownMenuItem(
+                  value: t, child: Text(_typeLabel(t), style: const TextStyle(fontSize: 14)),
+                )).toList(),
+                onChanged: (v) => setState(() => _selectedType = v!),
               ),
               const SizedBox(height: 12),
               Row(

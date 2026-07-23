@@ -79,6 +79,8 @@ class FlexUser {
 //  LISTING MODEL
 // ─────────────────────────────────────────────
 
+enum TypeLogement { chambre, studio, appartement, villa, cohabitation, espace, club, autre }
+
 enum CertificationStatus { pending, certified, rejected }
 
 class Listing {
@@ -86,6 +88,7 @@ class Listing {
   final String hoteId;
   final String titre;
   final String description;
+  final TypeLogement typeLogement;
   final String ville;
   final String quartier;
   final String adresse;
@@ -106,6 +109,7 @@ class Listing {
     required this.hoteId,
     required this.titre,
     required this.description,
+    this.typeLogement = TypeLogement.chambre,
     required this.ville,
     required this.quartier,
     required this.adresse,
@@ -130,6 +134,9 @@ class Listing {
       hoteId: map['hoteId'] ?? '',
       titre: map['titre'] ?? '',
       description: map['description'] ?? '',
+      typeLogement: TypeLogement.values.firstWhere(
+        (t) => t.name == map['typeLogement'], orElse: () => TypeLogement.chambre,
+      ),
       ville: map['ville'] ?? '',
       quartier: map['quartier'] ?? '',
       adresse: map['adresse'] ?? '',
@@ -155,6 +162,7 @@ class Listing {
     'hoteId': hoteId,
     'titre': titre,
     'description': description,
+    'typeLogement': typeLogement.name,
     'ville': ville,
     'quartier': quartier,
     'adresse': adresse,
@@ -246,6 +254,76 @@ class Booking {
     'status': status.name,
     'paymentMethod': paymentMethod?.name,
     'isPaid': isPaid,
+    'createdAt': createdAt.toIso8601String(),
+  };
+}
+
+// ─────────────────────────────────────────────
+//  VISIT RESERVATION MODEL
+// ─────────────────────────────────────────────
+
+enum VisitStatus { pending, confirmed, completed, cancelled }
+
+class VisitReservation {
+  final String id;
+  final String listingId;
+  final String listingTitle;
+  final String voyageurId;
+  final String voyageurNom;
+  final String voyageurTelephone;
+  final String hoteId;
+  final DateTime dateVisite;
+  final String timeSlot;
+  final String message;
+  final VisitStatus status;
+  final DateTime createdAt;
+
+  const VisitReservation({
+    required this.id,
+    required this.listingId,
+    required this.listingTitle,
+    required this.voyageurId,
+    required this.voyageurNom,
+    required this.voyageurTelephone,
+    required this.hoteId,
+    required this.dateVisite,
+    this.timeSlot = 'Matin (9h-12h)',
+    this.message = '',
+    this.status = VisitStatus.pending,
+    required this.createdAt,
+  });
+
+  factory VisitReservation.fromMap(Map<String, dynamic> map) {
+    return VisitReservation(
+      id: map['id'] ?? '',
+      listingId: map['listingId'] ?? '',
+      listingTitle: map['listingTitle'] ?? '',
+      voyageurId: map['voyageurId'] ?? '',
+      voyageurNom: map['voyageurNom'] ?? '',
+      voyageurTelephone: map['voyageurTelephone'] ?? '',
+      hoteId: map['hoteId'] ?? '',
+      dateVisite: DateTime.tryParse(map['dateVisite'] ?? '') ?? DateTime.now(),
+      timeSlot: map['timeSlot'] ?? 'Matin (9h-12h)',
+      message: map['message'] ?? '',
+      status: VisitStatus.values.firstWhere(
+        (s) => s.name == map['status'], orElse: () => VisitStatus.pending,
+      ),
+      createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'listingId': listingId,
+    'listingTitle': listingTitle,
+    'voyageurId': voyageurId,
+    'voyageurNom': voyageurNom,
+    'voyageurTelephone': voyageurTelephone,
+    'hoteId': hoteId,
+    'dateVisite': dateVisite.toIso8601String(),
+    'timeSlot': timeSlot,
+    'message': message,
+    'status': status.name,
     'createdAt': createdAt.toIso8601String(),
   };
 }
