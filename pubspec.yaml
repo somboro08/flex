@@ -83,14 +83,15 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/launcher_icon.png"
-  min_sdk_android: 21 # Votre minSdk version
-  background_color: "#F2F0EC" # FlexColors.neutral100
-  adaptive_icon_background: "#FF5722"  # Mets ici ton code couleur HEX (ex: Orange)
-  adaptive_icon_foreground: "assets/launcher_icon.png" # Ton logo seul
+  image_path: "assets/icons/flexIco.png"
+  min_sdk_android: 21
+  background_color: "#F2F0EC"
+  adaptive_icon_background: "#FF6B00"
+  adaptive_icon_foreground: "assets/icons/flexIco.png"
 
 flutter_native_splash:
-  color: "#FF6B00" # FlexColors.primary500
+  color: "#FF6B00"
+  image: "assets/icons/flexsplash.png"
   android: true
   ios: true
   android_gravity: center
