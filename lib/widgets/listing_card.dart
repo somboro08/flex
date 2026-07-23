@@ -1,28 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart' show Share;
 import '../theme/flex_theme.dart';
 import '../models/models.dart';
+import '../services/storage_service.dart';
 import 'flex_badge.dart';
 import 'listing_detail_bottom_sheet.dart';
 import '../screens/booking/booking_confirmation_screen.dart';
 import '../screens/chat/chat_screen.dart';
 
-class ListingCard extends StatelessWidget {
+class ListingCard extends StatefulWidget {
   final Listing listing;
   final VoidCallback? onTap;
+  final bool isFavorite;
 
-  const ListingCard({super.key, required this.listing, this.onTap});
+  const ListingCard({super.key, required this.listing, this.onTap, this.isFavorite = false});
+
+  @override
+  State<ListingCard> createState() => _ListingCardState();
+}
+
+class _ListingCardState extends State<ListingCard> {
+  late bool _isFavorite;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+  }
+
+  void _toggleFav() async {
+    await StorageService.toggleFavorite(widget.listing.id);
+    setState(() => _isFavorite = !_isFavorite);
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
-      onTap: onTap ?? () {
+      onTap: widget.onTap ?? () async {
+        await StorageService.addRecentView(widget.listing.id);
+        if (!context.mounted) return;
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (context) => ListingDetailBottomSheet(listing: listing),
+          builder: (context) => ListingDetailBottomSheet(listing: widget.listing),
         );
       },
       child: Container(
@@ -58,7 +81,7 @@ class ListingCard extends StatelessWidget {
                           color: isDark ? FlexColors.neutral600 : FlexColors.neutral300,
                         ),
                         Text(
-                          listing.ville,
+                          widget.listing.ville,
                           style: FlexTextStyles.caption.copyWith(
                             color: isDark ? FlexColors.neutral500 : FlexColors.neutral400,
                           ),
@@ -68,11 +91,31 @@ class ListingCard extends StatelessWidget {
                   ),
                 ),
 
-                // Certification badge
+                // Favorite button
                 Positioned(
                   top: 12,
                   left: 12,
-                  child: CertificationBadge(status: listing.certification),
+                  child: GestureDetector(
+                    onTap: _toggleFav,
+                    child: Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        size: 18, color: _isFavorite ? Colors.red : Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Certification badge
+                Positioned(
+                  top: 54,
+                  left: 12,
+                  child: CertificationBadge(status: widget.listing.certification),
                 ),
 
                 // Price
@@ -86,7 +129,7 @@ class ListingCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(FlexRadius.full),
                     ),
                     child: Text(
-                      '${_formatPrice(listing.prixParNuit)} FCFA/nuit',
+                      '${_formatPrice(widget.listing.prixParNuit)} FCFA/nuit',
                       style: FlexTextStyles.caption.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -95,18 +138,48 @@ class ListingCard extends StatelessWidget {
                   ),
                 ),
 
-                // Message button
+                // Share button
                 Positioned(
                   bottom: 12,
                   right: 56,
+                  child: GestureDetector(
+                    onTap: () {
+                      Share.share('🏠 ${widget.listing.titre}\n📍 ${widget.listing.quartier}, ${widget.listing.ville}\n💰 ${widget.listing.prixParNuit.toInt()} FCFA/nuit\n\nDécouvre Flex - Hébergement économique certifié');
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.share_rounded,
+                        size: 18,
+                        color: FlexColors.primary500,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Message button
+                Positioned(
+                  bottom: 12,
+                  right: 12,
                   child: GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatScreen(
-                            listing: listing,
-                            initialMessage: 'Bonjour, je suis intéressé par votre logement "${listing.titre}". Est-il disponible ?',
+                            listing: widget.listing,
+                            initialMessage: 'Bonjour, je suis intéressé par votre logement "${widget.listing.titre}". Est-il disponible ?',
                           ),
                         ),
                       );
@@ -132,31 +205,6 @@ class ListingCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // Favorite button
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.favorite_border_rounded,
-                      size: 18,
-                      color: FlexColors.neutral600,
-                    ),
-                  ),
-                ),
               ],
             ),
 
@@ -168,7 +216,7 @@ class ListingCard extends StatelessWidget {
                 children: [
                   // Title
                   Text(
-                    listing.titre,
+                    widget.listing.titre,
                     style: FlexTextStyles.h3.copyWith(
                       color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
                     ),
@@ -187,7 +235,7 @@ class ListingCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 2),
                       Text(
-                        '${listing.quartier}, ${listing.ville}',
+                        '${widget.listing.quartier}, ${widget.listing.ville}',
                         style: FlexTextStyles.caption.copyWith(
                           color: FlexColors.neutral500,
                         ),
@@ -200,7 +248,7 @@ class ListingCard extends StatelessWidget {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: listing.equipements.take(3).map((e) => _EquipChip(label: e)).toList(),
+                    children: widget.listing.equipements.take(3).map((e) => _EquipChip(label: e)).toList(),
                   ),
                   const SizedBox(height: FlexSpacing.sm),
 
@@ -210,13 +258,13 @@ class ListingCard extends StatelessWidget {
                       const Icon(Icons.star_rounded, size: 16, color: FlexColors.warning),
                       const SizedBox(width: 4),
                       Text(
-                        listing.note.toStringAsFixed(1),
+                        widget.listing.note.toStringAsFixed(1),
                         style: FlexTextStyles.label.copyWith(
                           color: isDark ? FlexColors.neutral0 : FlexColors.neutral700,
                         ),
                       ),
                       Text(
-                        ' (${listing.nombreAvis} avis)',
+                        ' (${widget.listing.nombreAvis} avis)',
                         style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400),
                       ),
                       const Spacer(),
@@ -225,7 +273,7 @@ class ListingCard extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => BookingConfirmationScreen(listing: listing),
+                              builder: (context) => BookingConfirmationScreen(listing: widget.listing),
                             ),
                           );
                         },

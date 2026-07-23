@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/flex_theme.dart';
 import 'identity_verification_screen.dart';
 import 'favorites_screen.dart';

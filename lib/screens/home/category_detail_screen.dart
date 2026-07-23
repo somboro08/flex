@@ -87,7 +87,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: () async => setState(() {}),
+        color: FlexColors.primary500,
+        child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildCarousel(isDark)),
           SliverToBoxAdapter(child: _buildFilterBar(isDark, cardColor)),
@@ -117,6 +120,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
+      ),
       ),
     );
   }

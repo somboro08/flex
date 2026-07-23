@@ -14,16 +14,11 @@ import 'screens/home/notification_screen.dart';
 import 'screens/payment/payment_screen.dart';
 import 'screens/hote/hote_dashboard_screen.dart';
 import 'screens/booking/my_bookings_screen.dart';
-import 'screens/booking/review_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/profile/favorites_screen.dart';
 import 'screens/profile/settings_screen.dart';
 import 'screens/profile/identity_verification_screen.dart';
 import 'screens/profile/support_screen.dart';
-import 'screens/listing/listing_detail_screen.dart';
-import 'screens/listing/all_listings_screen.dart';
-import 'screens/chat/chat_screen.dart';
-import 'screens/agent/agent_audit_screen.dart';
 import 'screens/hote/hote_rentals_screen.dart';
 import 'screens/hote/hote_visit_requests_screen.dart';
 import 'screens/locataire/locataire_rentals_screen.dart';
@@ -146,8 +141,6 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: FlexColors.primary500,
       body: Center(

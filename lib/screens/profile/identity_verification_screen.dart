@@ -237,16 +237,5 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
     );
   }
 
-  Color _getStatusColor(IdentityVerificationStatus status) {
-    switch (status) {
-      case IdentityVerificationStatus.none:
-        return FlexColors.info;
-      case IdentityVerificationStatus.pending:
-        return FlexColors.warning;
-      case IdentityVerificationStatus.verified:
-        return FlexColors.success;
-      case IdentityVerificationStatus.rejected:
-        return FlexColors.error;
-    }
-  }
+
 }

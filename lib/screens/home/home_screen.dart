@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/flex_theme.dart';
 import '../../theme/theme_provider.dart';
 import '../../models/models.dart';
+import '../../services/storage_service.dart';
 import '../../widgets/listing_card.dart';
 import 'notification_screen.dart';
 import 'search_screen.dart';
@@ -24,6 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final _searchController = TextEditingController();
+  Set<String> _favorites = {};
+  List<Listing> _recentlyViewed = [];
 
   final List<_CategoryData> _categories = [
     _CategoryData('Location', Icons.home_rounded, '120+', 'location'),
@@ -35,6 +38,21 @@ class _HomeScreenState extends State<HomeScreen> {
     _CategoryData('Club', Icons.nightlife_rounded, '10+', 'club'),
     _CategoryData('Mon budget', Icons.calculate_rounded, '💰', 'budget', isBudget: true),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final favs = await StorageService.getFavorites();
+    final recentIds = await StorageService.getRecentViews();
+    setState(() {
+      _favorites = favs.toSet();
+      _recentlyViewed = _featuredListings.where((l) => recentIds.contains(l.id)).toList();
+    });
+  }
 
   // Mock data
   final List<Listing> _featuredListings = [
@@ -118,7 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHomeBody(bool isDark) {
     final themeProvider = context.watch<ThemeProvider>();
     return SafeArea(
-      child: CustomScrollView(
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        color: FlexColors.primary500,
+        child: CustomScrollView(
         slivers: [
           // App Bar
           SliverAppBar(
@@ -263,6 +284,33 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: FlexSpacing.lg),
 
+                  // Derniers vus
+                  if (_recentlyViewed.isNotEmpty) ...[
+                    Text(
+                      'Derniers vus',
+                      style: FlexTextStyles.h3.copyWith(
+                        color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
+                      ),
+                    ),
+                    const SizedBox(height: FlexSpacing.sm),
+                    SizedBox(
+                      height: 140,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _recentlyViewed.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) => SizedBox(
+                          width: 200,
+                          child: ListingCard(
+                            listing: _recentlyViewed[i],
+                            isFavorite: _favorites.contains(_recentlyViewed[i].id),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: FlexSpacing.lg),
+                  ],
+
                   // Section title
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -301,7 +349,10 @@ class _HomeScreenState extends State<HomeScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, i) => Padding(
                   padding: const EdgeInsets.only(bottom: FlexSpacing.md),
-                  child: ListingCard(listing: _featuredListings[i]),
+                  child: ListingCard(
+                    listing: _featuredListings[i],
+                    isFavorite: _favorites.contains(_featuredListings[i].id),
+                  ),
                 ),
                 childCount: _featuredListings.length,
               ),
@@ -310,6 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SliverToBoxAdapter(child: SizedBox(height: FlexSpacing.xl)),
         ],
+      ),
       ),
     );
   }

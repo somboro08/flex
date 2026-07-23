@@ -19,12 +19,10 @@ class ListingDetailBottomSheet extends StatefulWidget {
 class _ListingDetailBottomSheetState extends State<ListingDetailBottomSheet> {
   final PageController _imageController = PageController();
   final PageController _mainPageController = PageController();
-  int _currentMainPage = 0;
 
   @override
   void dispose() {
     _imageController.dispose();
-    _mainPageController.dispose();
     super.dispose();
   }
 
@@ -72,7 +70,7 @@ class _ListingDetailBottomSheetState extends State<ListingDetailBottomSheet> {
             child: PageView(
               controller: _mainPageController,
               onPageChanged: (index) {
-                setState(() => _currentMainPage = index);
+                setState(() {});
               },
               children: [
                 _buildDetailsPage(isDark, size),

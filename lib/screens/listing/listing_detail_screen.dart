@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart' show Share;
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../services/storage_service.dart';
 import '../../widgets/flex_badge.dart';
 import 'visit_request_screen.dart';
 
@@ -15,6 +17,30 @@ class ListingDetailScreen extends StatefulWidget {
 class _ListingDetailScreenState extends State<ListingDetailScreen> {
   DateTime? _dateArrivee;
   DateTime? _dateDepart;
+  bool _isFavorite = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFav();
+    StorageService.addRecentView(widget.listing.id);
+  }
+
+  void _loadFav() async {
+    final fav = await StorageService.isFavorite(widget.listing.id);
+    if (mounted) setState(() => _isFavorite = fav);
+  }
+
+  void _toggleFav() async {
+    await StorageService.toggleFavorite(widget.listing.id);
+    setState(() => _isFavorite = !_isFavorite);
+  }
+
+  void _share() {
+    Share.share(
+      '🏠 ${widget.listing.titre}\n📍 ${widget.listing.quartier}, ${widget.listing.ville}\n💰 ${widget.listing.prixParNuit.toInt()} FCFA/nuit\n⭐ ${widget.listing.note.toStringAsFixed(1)} (${widget.listing.nombreAvis} avis)\n\nDécouvre Flex - Hébergement économique certifié',
+    );
+  }
 
   Future<void> _pickDates() async {
     final range = await showDateRangePicker(
@@ -68,16 +94,25 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             actions: [
               Padding(
                 padding: const EdgeInsets.all(8),
-                child: CircleAvatar(
-                  backgroundColor: Colors.black.withOpacity(0.4),
-                  child: const Icon(Icons.favorite_border_rounded, color: Colors.white, size: 20),
+                child: GestureDetector(
+                  onTap: _toggleFav,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withOpacity(0.4),
+                    child: Icon(
+                      _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: _isFavorite ? Colors.red : Colors.white, size: 20,
+                    ),
+                  ),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.all(8),
-                child: CircleAvatar(
-                  backgroundColor: Colors.black.withOpacity(0.4),
-                  child: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                child: GestureDetector(
+                  onTap: _share,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withOpacity(0.4),
+                    child: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                  ),
                 ),
               ),
             ],

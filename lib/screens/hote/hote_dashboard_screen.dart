@@ -227,8 +227,8 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
         ),
         child: Row(
           children: [
-            _TabBtn(label: 'Mes logements', index: 0, selected: _selectedTab == 0),
-            _TabBtn(label: 'Réservations', index: 1, selected: _selectedTab == 1),
+            _TabBtn(label: 'Mes logements', index: 0, selected: _selectedTab == 0, onTap: () => setState(() => _selectedTab = 0)),
+            _TabBtn(label: 'Réservations', index: 1, selected: _selectedTab == 1, onTap: () => setState(() => _selectedTab = 1)),
           ],
         ),
       ),
@@ -423,17 +423,14 @@ class _StatCard extends StatelessWidget {
 }
 
 class _TabBtn extends StatelessWidget {
-  final String label; final int index; final bool selected;
-  const _TabBtn({required this.label, required this.index, required this.selected});
+  final String label; final int index; final bool selected; final VoidCallback onTap;
+  const _TabBtn({required this.label, required this.index, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          final state = context.findAncestorStateOfType<_HoteDashboardScreenState>();
-          state?.setState(() => state._selectedTab = index);
-        },
+        onTap: onTap,
         child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
@@ -560,7 +557,6 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(FlexSpacing.md),
