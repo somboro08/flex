@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
         slivers: [
           // App Bar
           SliverAppBar(
-            floating: true,
+            pinned: true,
             backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
             title: Row(
               children: [
