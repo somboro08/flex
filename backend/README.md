@@ -17,6 +17,22 @@ API REST robuste en Go avec Gin pour l'application Flex.
 - Redis 7+
 - Docker (optionnel)
 
+## Configuration des environnements et des URL
+
+Le backend lit les variables d'environnement (ou le fichier `.env` local). Les URL ne doivent jamais être codées en dur dans les services.
+
+Variables principales :
+
+- `API_PUBLIC_URL` : URL publique de cette API (ex. `https://api.example.com`).
+- `SERVER_HOST` / `SERVER_PORT` : adresse et port d'écoute internes du processus.
+- `CORS_ALLOWED_ORIGINS` : liste séparée par des virgules des origines frontend autorisées, sans chemin (ex. `https://app.example.com,https://admin.example.com`).
+- `DATABASE_URL`, `REDIS_URL` : adresses des services de données.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` : serveur d'e-mail.
+
+En production, `CORS_ALLOWED_ORIGINS` est obligatoire et doit contenir les domaines frontend exacts. Le backend refuse désormais de démarrer avec une liste CORS vide en production ; il n'ouvre jamais automatiquement CORS à toutes les origines.
+
+Pour Docker Compose, copier `.env.example` vers `.env`, puis renseigner les valeurs. Les secrets JWT et les origines CORS sont obligatoires. Les variables définies dans l'environnement de la plateforme de déploiement peuvent remplacer celles du fichier local.
+
 ## Installation
 
 ```bash
@@ -36,6 +52,21 @@ go run ./cmd/migrate up
 # Démarrer le serveur
 go run ./cmd/server
 ```
+
+Pour lancer le frontend Flutter avec l'API locale :
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://localhost:8080/api/v1
+```
+
+Sur un émulateur Android, utiliser `http://10.0.2.2:8080/api/v1`. Pour une build de production, fournir l'URL HTTPS publique :
+
+```bash
+flutter build apk --dart-define=API_BASE_URL=https://api.example.com/api/v1
+```
+
+La valeur est centralisée dans `lib/config/api_config.dart` et le client Dio partagé dans `lib/services/api_client.dart`. Ne pas créer une URL différente dans chaque service.
+
 
 ## Avec Docker
 
