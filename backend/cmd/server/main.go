@@ -24,7 +24,7 @@ func main() {
 
 	zerolog.SetGlobalLevel(cfg.LogLevelZero())
 
-	log.Info().Str("environment", cfg.Server.Environment).Msg("Flex API starting")
+	log.Info().Str("environment", cfg.Server.Environment).Str("public_api_url", cfg.Server.PublicURL).Msg("Flex API starting")
 
 	db, err := database.NewPostgres(cfg.Database)
 	if err != nil {
