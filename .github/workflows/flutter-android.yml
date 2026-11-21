@@ -24,7 +24,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.38.5'
           cache: true
 
       - name: Install dependencies
@@ -57,7 +57,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.38.5'
           cache: true
 
       # Force Flutter/Gradle to use the same pinned JDK.
