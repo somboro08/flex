@@ -151,7 +151,9 @@ class AuthService {
 
     final pending = _performRefresh();
     _refreshFuture = pending;
-    return pending.whenComplete(() => _refreshFuture = null);
+    return pending.whenComplete(() {
+      _refreshFuture = null;
+    });
   }
 
   Future<String?> _performRefresh() async {
