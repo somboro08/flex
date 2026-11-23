@@ -35,7 +35,7 @@ class _AuthScreenState extends State<AuthScreen>
     {'code': '+221', 'flag': '🇸🇳', 'name': 'Sénégal'},
     {'code': '+226', 'flag': '🇧🇫', 'name': 'Burkina Faso'},
     {'code': '+228', 'flag': '🇹🇬', 'name': 'Togo'},
-    {'code': '+227', 'flag': '+227', 'name': 'Niger'},
+    {'code': '+227', 'flag': '🇳🇪', 'name': 'Niger'},
   ];
 
   @override
