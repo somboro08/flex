@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flex_app/main.dart';
 import 'package:flex_app/theme/theme_provider.dart';
@@ -9,10 +8,16 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'onboarding_done': false});
   });
 
-  testWidgets('App smoke test', (WidgetTester tester) async {
+  testWidgets('App smoke test reaches onboarding on first launch', (WidgetTester tester) async {
+    // Match a common mobile viewport and verify the first-run navigation path.
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => ThemeProvider(),
@@ -23,10 +28,10 @@ void main() {
     expect(find.byType(FlexApp), findsOneWidget);
     expect(find.text('Chez vous, partout.'), findsOneWidget);
 
-    // Let the splash delay complete so its Future.delayed timer is not left
-    // pending when the widget test finishes.
+    // Complete the splash delay and route to onboarding.
     await tester.pump(const Duration(seconds: 2));
-    await tester.pump();
     await tester.pumpAndSettle();
+
+    expect(find.text('Bienvenue sur Flex'), findsOneWidget);
   });
 }
