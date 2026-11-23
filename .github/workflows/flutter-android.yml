@@ -1,14 +1,20 @@
 name: Flutter Android CI
 
 on:
+  # Feature branches are validated by their pull request only. This avoids
+  # running the same CI twice (push + pull_request) for every commit.
   push:
     branches:
       - main
-      - chore/configurable-api-environments
   pull_request:
     branches:
       - main
   workflow_dispatch:
+
+# Keep only the newest run for a given branch/PR; cancel obsolete queued/running runs.
+concurrency:
+  group: flutter-android-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
