@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flex — Super-Admin, Télémétrie Live & Validation d'Identités (KYC)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #FF6B00;
+      --primary-hover: #E05E00;
+      --bg: #0F172A;
+      --card-bg: #1E293B;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --border: #334155;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --info: #3B82F6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo-badge { display: flex; align-items: center; gap: 0.75rem; }
+    .logo { background: var(--primary); color: white; font-weight: 800; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 1.2rem; letter-spacing: 1.5px; }
+    .status-pill { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid var(--success); padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+
+    main { padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; flex: 1; }
+
+    .nav-tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; flex-wrap: wrap; }
+    .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; font-size: 0.95rem; font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.2s; }
+    .tab-btn.active, .tab-btn:hover { color: var(--primary); background: rgba(255,107,0,0.1); }
+
+    .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .stat-card .label { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.4rem; }
+    .stat-card .val { font-size: 1.8rem; font-weight: 700; color: var(--text); }
+    .stat-card .sub { font-size: 0.8rem; color: var(--success); margin-top: 0.4rem; }
+
+    .grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .chart-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; height: 320px; }
+    .chart-card h3 { font-size: 1rem; margin-bottom: 1rem; color: var(--text); font-weight: 600; }
+
+    .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 2rem; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .panel-title { font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    th { color: var(--text-muted); font-weight: 500; background: rgba(0,0,0,0.2); }
+    
+    .btn { background: var(--primary); color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 500; font-size: 0.8rem; cursor: pointer; transition: background 0.2s; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #DC2626; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #475569; }
+
+    .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge-certified { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .badge-pending { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .badge-rejected { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .badge-get { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+    .badge-post { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .badge-put { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+    .doc-link { color: var(--info); text-decoration: underline; font-weight: 500; }
+    .doc-link:hover { color: var(--primary); }
+
+    footer { text-align: center; padding: 1.25rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-badge">
+      <div class="logo">FLEX</div>
+      <span style="font-weight: 600; font-size: 1.1rem;">Super-Admin & Validation d'Identités (KYC)</span>
+    </div>
+    <div class="status-pill"><span style="animation: pulse 1.5s infinite; color:#10B981">●</span> API & WebSockets Actifs</div>
+  </header>
+
+  <main>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('overview')">📊 Vue d'ensemble</button>
+      <button class="tab-btn" onclick="switchTab('identity')">🪪 Vérification d'Identité (KYC)</button>
+      <button class="tab-btn" onclick="switchTab('telemetry')">⚡ Télémétrie & Logs d'Accès</button>
+      <button class="tab-btn" onclick="switchTab('listings')">🏠 Annonces & Cartographie</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview">
+      <div class="grid-stats">
+        <div class="stat-card">
+          <div class="label">Utilisateurs Inscrits</div>
+          <div class="val" id="stat-users">24</div>
+          <div class="sub">Voyageurs, Hôtes & Agents</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Dossiers d'Identité Soumis</div>
+          <div class="val" style="color:var(--warning)" id="stat-pending-kyc">3</div>
+          <div class="sub">En attente de validation admin</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Logements Référencés</div>
+          <div class="val" id="stat-listings">18</div>
+          <div class="sub">Parakou, Cotonou, Porto-Novo</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Réservations Valides</div>
+          <div class="val" id="stat-bookings">14</div>
+          <div class="sub">Total cumulé 630.000 XOF</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Commission Flex (10%)</div>
+          <div class="val" style="color:var(--primary)" id="stat-commissions">63.000 XOF</div>
+          <div class="sub">Revenus plateforme</div>
+        </div>
+      </div>
+
+      <div class="grid-charts">
+        <div class="chart-card">
+          <h3>Répartition des Logements par Ville (Parakou / Cotonou / ...)</h3>
+          <canvas id="chartCities"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Trafic & Télémétrie Utilisateurs (Requêtes / Heure)</h3>
+          <canvas id="chartTraffic"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: IDENTITY VERIFICATION (KYC) -->
+    <div id="tab-identity" style="display: none;">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🪪 Vérification des Pièces d'Identité & Documents Utilisateurs (KYC)</div>
+          <button class="btn" onclick="fetchIdentities()">Rafraîchir les dossiers</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Utilisateur & Contact</th>
+              <th>Rôle</th>
+              <th>Carte d'Identité / Passeport</th>
+              <th>Acte de Naissance / Doc.</th>
+              <th>Statut Actuel</th>
+              <th>Décision Admin</th>
+            </tr>
+          </thead>
+          <tbody id="identity-table">
+            <tr>
+              <td><strong>Bio Kouandété</strong><br><small style="color:#94A3B8">+22997222222 | hote_222222@flex.bj</small></td>
+              <td><span class="badge badge-get">Hôte</span></td>
+              <td><a href="/uploads/id_card_sample.jpg" target="_blank" class="doc-link">📄 CNI_Kouandete.jpg</a></td>
+              <td><a href="/uploads/birth_cert_sample.pdf" target="_blank" class="doc-link">📄 Acte_Naissance.pdf</a></td>
+              <td><span class="badge badge-pending">En attente (Pending)</span></td>
+              <td>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn" onclick="verifyUser('demo-id', 'verified')">✓ Valider Identité</button>
+                  <button class="btn btn-danger" onclick="verifyUser('demo-id', 'rejected')">✗ Refuser</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: TELEMETRY & LOGS -->
+    <div id="tab-telemetry" style="display: none;">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⚡ Logs d'Accès Temps-Réel & Audit Télémétrie API</div>
+          <button class="btn" onclick="fetchData()">Rafraîchir</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Horodatage</th>
+              <th>Méthode</th>
+              <th>Endpoint / Chemin</th>
+              <th>IP Client</th>
+              <th>Latence</th>
+              <th>Statut HTTP</th>
+            </tr>
+          </thead>
+          <tbody id="logs-table">
+            <tr>
+              <td>23:10:12</td>
+              <td><span class="badge badge-post">POST</span></td>
+              <td>/api/v1/me/identity</td>
+              <td>192.168.1.45</td>
+              <td>22 ms</td>
+              <td><span class="badge badge-certified">200 OK</span></td>
+            </tr>
+            <tr>
+              <td>23:09:44</td>
+              <td><span class="badge badge-post">POST</span></td>
+              <td>/api/v1/upload</td>
+              <td>192.168.1.45</td>
+              <td>45 ms</td>
+              <td><span class="badge badge-certified">201 Created</span></td>
+            </tr>
+            <tr>
+              <td>23:05:04</td>
+              <td><span class="badge badge-get">GET</span></td>
+              <td>/api/v1/listings?ville=Parakou</td>
+              <td>41.79.217.116</td>
+              <td>12 ms</td>
+              <td><span class="badge badge-certified">200 OK</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: LISTINGS -->
+    <div id="tab-listings" style="display: none;">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🏠 Gestion des Logements sous Tous les Angles</div>
+          <button class="btn" onclick="fetchData()">Actualiser</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Logement & Emplacement</th>
+              <th>Type</th>
+              <th>Prix / Nuit</th>
+              <th>Hôte</th>
+              <th>Certification</th>
+              <th>Action Admin</th>
+            </tr>
+          </thead>
+          <tbody id="listings-table">
+            <tr>
+              <td><strong>Studio Moderne Résidentiel</strong><br><small style="color:#94A3B8">Parakou - Zongo</small></td>
+              <td>Appartement</td>
+              <td>15.000 XOF</td>
+              <td>Bio Kouandété (+22997222222)</td>
+              <td><span class="badge badge-pending">En attente d'audit</span></td>
+              <td><button class="btn" onclick="certify('demo')">Certifier</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Flex West Africa — Super-Admin, Telemetry Engine & Identity Verification System © 2026
+  </footer>
+
+  <script>
+    let citiesChart, trafficChart;
+
+    function initCharts() {
+      const ctxCities = document.getElementById('chartCities').getContext('2d');
+      citiesChart = new Chart(ctxCities, {
+        type: 'doughnut',
+        data: {
+          labels: ['Parakou', 'Cotonou', 'Porto-Novo', 'Bohicon', 'Natitingou'],
+          datasets: [{
+            data: [45, 25, 15, 10, 5],
+            backgroundColor: ['#FF6B00', '#10B981', '#3B82F6', '#F59E0B', '#8B5CF6']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#F8FAFC' } } } }
+      });
+
+      const ctxTraffic = document.getElementById('chartTraffic').getContext('2d');
+      trafficChart = new Chart(ctxTraffic, {
+        type: 'line',
+        data: {
+          labels: ['18h', '19h', '20h', '21h', '22h', '23h'],
+          datasets: [{
+            label: 'Requêtes API / min',
+            data: [120, 190, 300, 450, 680, 890],
+            borderColor: '#FF6B00',
+            backgroundColor: 'rgba(255, 107, 0, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } } }
+      });
+    }
+
+    function switchTab(tab) {
+      document.getElementById('tab-overview').style.display = tab === 'overview' ? 'block' : 'none';
+      document.getElementById('tab-identity').style.display = tab === 'identity' ? 'block' : 'none';
+      document.getElementById('tab-telemetry').style.display = tab === 'telemetry' ? 'block' : 'none';
+      document.getElementById('tab-listings').style.display = tab === 'listings' ? 'block' : 'none';
+
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (tab === 'identity') fetchIdentities();
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/v1/admin/stats');
+        const data = await res.json();
+        if (data.data) {
+          document.getElementById('stat-users').innerText = data.data.users_count || '24';
+          document.getElementById('stat-listings').innerText = data.data.listings_count || '18';
+          document.getElementById('stat-bookings').innerText = data.data.bookings_count || '14';
+        }
+
+        const resList = await fetch('/api/v1/listings');
+        const listData = await resList.json();
+        if (listData.data && listData.data.length > 0) {
+          const tbody = document.getElementById('listings-table');
+          tbody.innerHTML = '';
+          listData.data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${item.titre}</strong><br><small style="color:#94A3B8">${item.ville} - ${item.quartier}</small></td>
+              <td>${item.typeLogement || 'Logement'}</td>
+              <td>${item.prixParNuit ? item.prixParNuit.toLocaleString() + ' XOF' : '-'}</td>
+              <td>${item.hote ? item.hote.prenom + ' ' + item.hote.nom : 'Hôte Flex'}</td>
+              <td><span class="${item.certification === 'certified' ? 'badge badge-certified' : 'badge badge-pending'}">${item.certification === 'certified' ? 'Certifié ★' : 'En attente'}</span></td>
+              <td><button class="btn" onclick="certify('${item.id}')">Certifier</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error('Erreur chargement admin:', err);
+      }
+    }
+
+    async function fetchIdentities() {
+      try {
+        const res = await fetch('/api/v1/admin/users/identity');
+        const data = await res.json();
+        const tbody = document.getElementById('identity-table');
+        if (data.data && data.data.length > 0) {
+          tbody.innerHTML = '';
+          document.getElementById('stat-pending-kyc').innerText = data.data.filter(u => u.verificationStatus === 'pending' || !u.isVerified).length;
+          data.data.forEach(user => {
+            const tr = document.createElement('tr');
+            const statusBadge = user.verificationStatus === 'verified' || user.isVerified 
+              ? '<span class="badge badge-certified">✓ Vérifié (Verified)</span>'
+              : user.verificationStatus === 'rejected'
+              ? '<span class="badge badge-rejected">✗ Refusé</span>'
+              : '<span class="badge badge-pending">⌛ En attente</span>';
+
+            const idCardLink = user.idCardUrl ? `<a href="${user.idCardUrl}" target="_blank" class="doc-link">📄 Voir Carte/Passeport</a>` : '<span style="color:#64748B">Non fourni</span>';
+            const birthCertLink = user.birthCertificateUrl ? `<a href="${user.birthCertificateUrl}" target="_blank" class="doc-link">📄 Voir Acte/Doc</a>` : '<span style="color:#64748B">Non fourni</span>';
+
+            tr.innerHTML = `
+              <td><strong>${user.prenom || ''} ${user.nom || ''}</strong><br><small style="color:#94A3B8">${user.telephone || ''} | ${user.email || ''}</small></td>
+              <td><span class="badge badge-get">${user.role || 'voyageur'}</span></td>
+              <td>${idCardLink}</td>
+              <td>${birthCertLink}</td>
+              <td>${statusBadge}</td>
+              <td>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn" onclick="verifyUser('${user.id}', 'verified')">✓ Valider Identité</button>
+                  <button class="btn btn-danger" onclick="verifyUser('${user.id}', 'rejected')">✗ Refuser</button>
+                </div>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error('Erreur chargement identités:', err);
+      }
+    }
+
+    async function verifyUser(userId, status) {
+      if (userId === 'demo-id') {
+        alert(status === 'verified' ? '✓ Identité utilisateur validée et certifiée avec succès !' : '✗ Identité refusée.');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/v1/admin/users/${userId}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: status })
+        });
+        const data = await res.json();
+        alert(data.message || 'Mise à jour effectuée !');
+        fetchIdentities();
+      } catch (e) {
+        alert('Erreur lors de la validation d\'identité');
+      }
+    }
+
+    async function certify(id) {
+      if (id === 'demo') return alert('Annonce certifiée avec succès !');
+      try {
+        const res = await fetch(`/api/v1/admin/listings/${id}/approve`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || 'Logement certifié !');
+        fetchData();
+      } catch (e) {
+        alert('Erreur lors de la certification');
+      }
+    }
+
+    window.onload = () => {
+      initCharts();
+      fetchData();
+      fetchIdentities();
+    };
+  </script>
+</body>
+</html>

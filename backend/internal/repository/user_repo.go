@@ -99,3 +99,51 @@ func (r *UserRepository) UpdateRefreshToken(ctx context.Context, id uuid.UUID, t
 	return r.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).
 		UpdateColumn("refresh_token", token).Error
 }
+
+func (r *UserRepository) AddFavorite(ctx context.Context, userID, listingID uuid.UUID) error {
+	return r.db.WithContext(ctx).Exec(
+		`UPDATE users SET favorites = array_append(favorites, ?::text)
+		 WHERE id = ? AND NOT (?::text = ANY(favorites))`,
+		listingID, userID, listingID,
+	).Error
+}
+
+func (r *UserRepository) RemoveFavorite(ctx context.Context, userID, listingID uuid.UUID) error {
+	return r.db.WithContext(ctx).Exec(
+		`UPDATE users SET favorites = array_remove(favorites, ?::text) WHERE id = ?`,
+		listingID, userID,
+	).Error
+}
+
+func (r *UserRepository) IsFavorite(ctx context.Context, userID, listingID uuid.UUID) (bool, error) {
+	var favorites models.StringArray
+	err := r.db.WithContext(ctx).Model(&models.User{}).
+		Select("favorites").Where("id = ?", userID).Scan(&favorites).Error
+	if err != nil {
+		return false, err
+	}
+	for _, f := range favorites {
+		if f == listingID.String() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *UserRepository) FindPendingIdentities(ctx context.Context) ([]models.User, error) {
+	var users []models.User
+	err := r.db.WithContext(ctx).
+		Where("deleted_at IS NULL AND (id_card_url IS NOT NULL AND id_card_url != '' OR verification_status = 'pending')").
+		Order("updated_at DESC").
+		Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) VerifyIdentity(ctx context.Context, id uuid.UUID, status string) error {
+	isVerified := status == "verified"
+	return r.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"verification_status": status,
+		"is_verified":         isVerified,
+	}).Error
+}
+

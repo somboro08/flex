@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/listing_repository.dart';
 import '../../widgets/listing_card.dart';
+import '../../core/responsive/breakpoints.dart';
+import '../../core/responsive/content_container.dart';
+import '../../shared/widgets/adaptive_grid.dart';
 
 class SearchScreen extends StatefulWidget {
   final String? initialQuery;
@@ -24,32 +28,38 @@ class _SearchScreenState extends State<SearchScreen> {
   final _villes = ['Toutes', 'Parakou', 'Cotonou', 'Abomey', 'Natitingou', 'Porto-Novo'];
   final _equipements = ['WiFi', 'Climatisation', 'Ventilateur', 'Eau chaude', 'Cuisine', 'Parking', 'Jardin'];
 
-  final List<Listing> _allResults = [
-    Listing(id: 's1', hoteId: 'h1', titre: 'Appartement moderne Cotonou',
-      description: 'Bel appartement spacieux.', ville: 'Cotonou',
-      quartier: 'Fidjrossé', adresse: 'Route des Pêches', latitude: 6.35,
-      longitude: 2.38, prixParNuit: 15000, photos: [],
-      equipements: ['WiFi', 'Climatisation', 'Cuisine'],
-      certification: CertificationStatus.certified, note: 4.9, nombreAvis: 15, createdAt: DateTime.now()),
-    Listing(id: 's2', hoteId: 'h2', titre: 'Villa de vacances Ouidah',
-      description: 'Villa avec piscine.', ville: 'Ouidah',
-      quartier: 'Kpasse', adresse: 'Route de la Plage', latitude: 6.36,
-      longitude: 2.08, prixParNuit: 35000, photos: [],
-      equipements: ['Piscine', 'WiFi', 'Jardin'],
-      certification: CertificationStatus.certified, note: 4.7, nombreAvis: 8, createdAt: DateTime.now()),
-    Listing(id: 's3', hoteId: 'h3', titre: 'Chambre économique Parakou',
-      description: 'Chambre simple et propre.', ville: 'Parakou',
-      quartier: 'Zongo', adresse: 'Rue Principale', latitude: 9.34,
-      longitude: 2.63, prixParNuit: 5000, photos: [],
-      equipements: ['Ventilateur', 'WiFi'],
-      certification: CertificationStatus.pending, note: 4.2, nombreAvis: 5, createdAt: DateTime.now()),
-  ];
+  final _listingRepo = ListingRepository();
+  List<Listing> _allResults = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final listings = await _listingRepo.getListings();
+      if (!mounted) return;
+      setState(() {
+        _allResults = listings;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading search listings: $e');
+      if (!mounted) return;
+      setState(() {
+        _allResults = [];
+        _isLoading = false;
+      });
+    }
+  }
 
   List<Listing> get _filteredResults {
     return _allResults.where((l) {
-      if (_selectedCategory != 'Tout' && !l.titre.toLowerCase().contains(_selectedCategory.toLowerCase())) {
-        return false;
-      }
+      if (_selectedCategory != 'Tout' && !l.titre.toLowerCase().contains(_selectedCategory.toLowerCase())) return false;
       if (_selectedVille != 'Toutes' && l.ville != _selectedVille) return false;
       if (l.prixParNuit < _prixRange.start || l.prixParNuit > _prixRange.end) return false;
       if (_certifieOnly && l.certification != CertificationStatus.certified) return false;
@@ -58,9 +68,9 @@ class _SearchScreenState extends State<SearchScreen> {
       }
       if (_searchController.text.isNotEmpty) {
         final q = _searchController.text.toLowerCase();
-        if (!l.titre.toLowerCase().contains(q) && !l.ville.toLowerCase().contains(q) && !l.quartier.toLowerCase().contains(q)) {
-          return false;
-        }
+        if (!l.titre.toLowerCase().contains(q) &&
+            !l.ville.toLowerCase().contains(q) &&
+            !l.quartier.toLowerCase().contains(q)) return false;
       }
       return true;
     }).toList();
@@ -69,47 +79,108 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = context.isDesktop;
 
     return Scaffold(
       backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
       appBar: AppBar(
         title: const Text('Recherche', style: FlexTextStyles.h3),
-        centerTitle: true,
+        centerTitle: !isDesktop,
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(_showFilters ? Icons.filter_list_off : Icons.filter_list_rounded,
-                color: _showFilters ? FlexColors.primary500 : FlexColors.neutral400),
-            onPressed: () => setState(() => _showFilters = !_showFilters),
+          Tooltip(
+            message: _showFilters ? 'Masquer les filtres' : 'Afficher les filtres',
+            child: IconButton(
+              icon: Icon(
+                _showFilters ? Icons.filter_list_off : Icons.filter_list_rounded,
+                color: _showFilters ? FlexColors.primary500 : FlexColors.neutral400,
+              ),
+              onPressed: () => setState(() => _showFilters = !_showFilters),
+            ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildSearchBar(isDark),
-          if (_showFilters) _buildFilters(isDark),
-          _buildCategories(isDark),
-          Expanded(
-            child: _filteredResults.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(FlexSpacing.md),
-                    itemCount: _filteredResults.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: ListingCard(listing: _filteredResults[i]),
+      body: AdaptiveContentContainer(
+        child: isDesktop && _showFilters
+            // Desktop: side-by-side filters + results
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 280,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: Column(
+                        children: [
+                          _buildSearchBar(isDark),
+                          const SizedBox(height: 8),
+                          _buildFilters(isDark),
+                        ],
+                      ),
                     ),
                   ),
-          ),
-        ],
+                  const VerticalDivider(width: 1),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildResultsColumn(isDark)),
+                ],
+              )
+            // Mobile / Tablet: stacked layout
+            : Column(
+                children: [
+                  _buildSearchBar(isDark),
+                  if (_showFilters) _buildFilters(isDark),
+                  _buildCategories(isDark),
+                  Expanded(child: _buildResultsColumn(isDark)),
+                ],
+              ),
       ),
+    );
+  }
+
+  Widget _buildResultsColumn(bool isDark) {
+    if (!context.isDesktop) {
+      return Column(
+        children: [
+          _buildCategories(isDark),
+          Expanded(child: _buildResults(isDark)),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCategories(isDark),
+        const SizedBox(height: 8),
+        Expanded(child: _buildResults(isDark)),
+      ],
+    );
+  }
+
+  Widget _buildResults(bool isDark) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: FlexColors.primary500));
+    }
+    if (_filteredResults.isEmpty) return _buildEmptyState();
+
+    return AdaptiveGrid<Listing>(
+      items: _filteredResults,
+      mobileCrossAxisCount: 1,
+      tabletCrossAxisCount: 2,
+      desktopCrossAxisCount: 3,
+      largeDesktopCrossAxisCount: 4,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: context.isMobile ? 0.92 : 0.8,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemBuilder: (context, listing, i) => ListingCard(listing: listing),
     );
   }
 
   Widget _buildSearchBar(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.all(FlexSpacing.md),
+      padding: const EdgeInsets.symmetric(vertical: FlexSpacing.sm, horizontal: 0),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
@@ -124,6 +195,7 @@ class _SearchScreenState extends State<SearchScreen> {
             hintText: 'Ville, quartier, logement...',
             icon: Icon(Icons.search_rounded, color: FlexColors.primary500),
             border: InputBorder.none,
+            filled: false,
           ),
         ),
       ),
@@ -132,7 +204,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildFilters(bool isDark) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(FlexSpacing.md),
       decoration: BoxDecoration(
         color: isDark ? FlexColors.neutral800 : Colors.white,
@@ -160,28 +232,19 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(height: 12),
           Text('Ville', style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
           const SizedBox(height: 6),
-          SizedBox(
-            height: 32,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _villes.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, i) => _FilterChip(
-                label: _villes[i], selected: _selectedVille == _villes[i],
-                onTap: () => setState(() => _selectedVille = _villes[i]),
-              ),
-            ),
+          Wrap(
+            spacing: 6, runSpacing: 6,
+            children: _villes.map((v) => _FilterChip(
+              label: v, selected: _selectedVille == v,
+              onTap: () => setState(() => _selectedVille = v),
+            )).toList(),
           ),
           const SizedBox(height: 12),
           Text('Prix par nuit', style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
           RangeSlider(
             values: _prixRange,
-            min: 2000, max: 100000,
-            divisions: 20,
-            labels: RangeLabels(
-              '${_prixRange.start.toInt()} FCFA',
-              '${_prixRange.end.toInt()} FCFA',
-            ),
+            min: 2000, max: 100000, divisions: 20,
+            labels: RangeLabels('${_prixRange.start.toInt()} FCFA', '${_prixRange.end.toInt()} FCFA'),
             activeColor: FlexColors.primary500,
             onChanged: (v) => setState(() => _prixRange = v),
           ),
@@ -220,7 +283,10 @@ class _SearchScreenState extends State<SearchScreen> {
     return SizedBox(
       height: 40,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: context.isDesktop ? 0 : FlexSpacing.md,
+          vertical: 4,
+        ),
         scrollDirection: Axis.horizontal,
         itemCount: _categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -233,12 +299,17 @@ class _SearchScreenState extends State<SearchScreen> {
               decoration: BoxDecoration(
                 color: isSelected ? FlexColors.primary500 : Colors.transparent,
                 borderRadius: BorderRadius.circular(FlexRadius.full),
-                border: Border.all(color: isSelected ? FlexColors.primary500 : (isDark ? FlexColors.neutral700 : FlexColors.neutral200)),
+                border: Border.all(
+                  color: isSelected ? FlexColors.primary500 : (isDark ? FlexColors.neutral700 : FlexColors.neutral200),
+                ),
               ),
-              child: Text(_categories[i], style: FlexTextStyles.caption.copyWith(
-                color: isSelected ? Colors.white : (isDark ? FlexColors.neutral400 : FlexColors.neutral600),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              )),
+              child: Text(
+                _categories[i],
+                style: FlexTextStyles.caption.copyWith(
+                  color: isSelected ? Colors.white : (isDark ? FlexColors.neutral400 : FlexColors.neutral600),
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
             ),
           );
         },
@@ -251,7 +322,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 64, color: FlexColors.neutral300),
+          const Icon(Icons.search_off_rounded, size: 64, color: FlexColors.neutral300),
           const SizedBox(height: 16),
           Text('Aucun résultat', style: FlexTextStyles.h3.copyWith(color: FlexColors.neutral400)),
           const SizedBox(height: 8),
@@ -269,7 +340,9 @@ class _SearchScreenState extends State<SearchScreen> {
 }
 
 class _FilterChip extends StatelessWidget {
-  final String label; final bool selected; final VoidCallback onTap;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
   const _FilterChip({required this.label, required this.selected, required this.onTap});
 
   @override
@@ -283,10 +356,13 @@ class _FilterChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(FlexRadius.full),
           border: Border.all(color: selected ? FlexColors.primary500 : FlexColors.neutral300),
         ),
-        child: Text(label, style: FlexTextStyles.caption.copyWith(
-          color: selected ? FlexColors.primary500 : FlexColors.neutral500,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-        )),
+        child: Text(
+          label,
+          style: FlexTextStyles.caption.copyWith(
+            color: selected ? FlexColors.primary500 : FlexColors.neutral500,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }

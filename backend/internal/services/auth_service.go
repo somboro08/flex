@@ -44,6 +44,8 @@ type AuthService struct {
 	jwt         *jwt.JWTManager
 	cfg         *config.Config
 	validator   *validator.Validator
+	emailSvc    *EmailService
+	smsSvc      *SMSService
 }
 
 func NewAuthService(
@@ -53,6 +55,8 @@ func NewAuthService(
 	jwt *jwt.JWTManager,
 	cfg *config.Config,
 	v *validator.Validator,
+	emailSvc *EmailService,
+	smsSvc *SMSService,
 ) *AuthService {
 	return &AuthService{
 		userRepo:    userRepo,
@@ -61,6 +65,8 @@ func NewAuthService(
 		jwt:         jwt,
 		cfg:         cfg,
 		validator:   v,
+		emailSvc:    emailSvc,
+		smsSvc:      smsSvc,
 	}
 }
 
@@ -92,6 +98,44 @@ func RoleFromString(role string) models.UserRole {
 	default:
 		return models.RoleVoyageur
 	}
+}
+
+// CanSelfRegisterRole returns true if a client may request this role at registration.
+// The agent role is reserved: it cannot be self-assigned.
+func CanSelfRegisterRole(role models.UserRole) bool {
+	return role == models.RoleVoyageur || role == models.RoleHote
+}
+
+// ChangeRole upgrades an existing user (voyageur → hote) or switches between
+// voyageur/hote. Agent role is never self-assignable.
+func (s *AuthService) ChangeRole(ctx context.Context, userID uuid.UUID, role models.UserRole) (*models.User, error) {
+	if !CanSelfRegisterRole(role) {
+		return nil, errors.New("rôle invalide")
+	}
+
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.Role == role {
+		return user, nil
+	}
+
+	if user.Role == models.RoleAgent {
+		return nil, errors.New("un agent ne peut pas changer de rôle")
+	}
+
+	if err := s.userRepo.UpdateFields(ctx, userID, map[string]interface{}{
+		"role":         role,
+		"is_onboarded": true,
+	}); err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	user.IsOnboarded = true
+	return user, nil
 }
 
 func (s *AuthService) Register(ctx context.Context, req RegisterRequest, deviceInfo, ipAddress, userAgent string) (*AuthResponse, error) {
@@ -133,6 +177,9 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest, deviceI
 
 	if req.Role == "" {
 		req.Role = models.RoleVoyageur
+	}
+	if !CanSelfRegisterRole(req.Role) {
+		return nil, errors.New("rôle invalide")
 	}
 
 	user := &models.User{
@@ -389,4 +436,13 @@ func generateOTP(length int) (string, error) {
 		code += fmt.Sprintf("%d", n.Int64())
 	}
 	return code, nil
+}
+
+func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, fields map[string]interface{}) error {
+	return s.userRepo.UpdateFields(ctx, userID, fields)
+}
+
+// IsDevelopment returns true when the server runs outside the production environment.
+func (s *AuthService) IsDevelopment() bool {
+	return !s.cfg.IsProduction()
 }

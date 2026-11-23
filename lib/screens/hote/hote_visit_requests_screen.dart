@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/visit_repository.dart';
 
 class HoteVisitRequestsScreen extends StatefulWidget {
   const HoteVisitRequestsScreen({super.key});
@@ -10,12 +11,27 @@ class HoteVisitRequestsScreen extends StatefulWidget {
 }
 
 class _HoteVisitRequestsScreenState extends State<HoteVisitRequestsScreen> {
-  final List<VisitReservation> _visits = [
-    VisitReservation(id: 'v1', listingId: 'l1', listingTitle: 'Villa Ouidah', voyageurId: 'u1', voyageurNom: 'Amadou Diallo', voyageurTelephone: '+229 97 11 22 33', hoteId: 'h1', dateVisite: DateTime(2026, 7, 25), timeSlot: 'Matin (9h-12h)', message: 'Bonjour, je suis très intéressé par la villa.', status: VisitStatus.pending, createdAt: DateTime.now()),
-    VisitReservation(id: 'v2', listingId: 'l2', listingTitle: 'Studio Cotonou', voyageurId: 'u2', voyageurNom: 'Fatou Sow', voyageurTelephone: '+229 97 44 55 66', hoteId: 'h1', dateVisite: DateTime(2026, 7, 26), timeSlot: 'Après-midi (14h-17h)', message: '', status: VisitStatus.pending, createdAt: DateTime.now()),
-    VisitReservation(id: 'v3', listingId: 'l1', listingTitle: 'Villa Ouidah', voyageurId: 'u3', voyageurNom: 'Kofi Mensah', voyageurTelephone: '+229 97 77 88 99', hoteId: 'h1', dateVisite: DateTime(2026, 7, 24), timeSlot: 'Matin (9h-12h)', message: 'Disponible samedi matin ?', status: VisitStatus.confirmed, createdAt: DateTime.now()),
-    VisitReservation(id: 'v4', listingId: 'l3', listingTitle: 'Chambre Parakou', voyageurId: 'u4', voyageurNom: 'Marie Koffi', voyageurTelephone: '+229 97 33 44 55', hoteId: 'h1', dateVisite: DateTime(2026, 7, 23), timeSlot: 'Soirée (17h-19h)', message: '', status: VisitStatus.completed, createdAt: DateTime.now()),
-  ];
+  final _visitRepo = VisitRepository();
+  List<VisitReservation> _visits = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVisits();
+  }
+
+  Future<void> _loadVisits() async {
+    try {
+      final list = await _visitRepo.getMyVisits();
+      if (mounted) {
+        setState(() {
+          _visits = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading visits: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,18 +175,20 @@ class _HoteVisitRequestsScreenState extends State<HoteVisitRequestsScreen> {
     );
   }
 
-  void _updateStatus(String id, VisitStatus newStatus) {
-    setState(() {
-      final idx = _visits.indexWhere((v) => v.id == id);
-      if (idx != -1) {
-        final old = _visits[idx];
-        _visits[idx] = VisitReservation(
-          id: old.id, listingId: old.listingId, listingTitle: old.listingTitle,
-          voyageurId: old.voyageurId, voyageurNom: old.voyageurNom, voyageurTelephone: old.voyageurTelephone,
-          hoteId: old.hoteId, dateVisite: old.dateVisite, timeSlot: old.timeSlot,
-          message: old.message, status: newStatus, createdAt: old.createdAt,
+  void _updateStatus(String id, VisitStatus newStatus) async {
+    try {
+      if (newStatus == VisitStatus.confirmed) {
+        await _visitRepo.confirmVisit(id);
+      } else if (newStatus == VisitStatus.cancelled) {
+        await _visitRepo.cancelVisit(id);
+      }
+      _loadVisits();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
         );
       }
-    });
+    }
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/visit_repository.dart';
+import '../../core/responsive/content_container.dart';
 
 class VisitRequestScreen extends StatefulWidget {
   final Listing listing;
@@ -15,6 +17,8 @@ class _VisitRequestScreenState extends State<VisitRequestScreen> {
   String _selectedSlot = 'Matin (9h-12h)';
   final _messageController = TextEditingController();
   bool _submitted = false;
+  bool _isLoading = false;
+  final _visitRepo = VisitRepository();
 
   final _slots = ['Matin (9h-12h)', 'Après-midi (14h-17h)', 'Soirée (17h-19h)'];
 
@@ -67,8 +71,9 @@ class _VisitRequestScreenState extends State<VisitRequestScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(FlexSpacing.md),
+      body: AdaptiveContentContainer(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(FlexSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -159,18 +164,45 @@ class _VisitRequestScreenState extends State<VisitRequestScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => setState(() => _submitted = true),
+                onPressed: _isLoading ? null : () async {
+                  setState(() => _isLoading = true);
+                  try {
+                    final dateStr = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+                    final ok = await _visitRepo.createVisit(
+                      listingId: widget.listing.id,
+                      dateVisite: dateStr,
+                      timeSlot: _selectedSlot,
+                      message: _messageController.text.trim(),
+                    );
+                    if (mounted) {
+                      setState(() {
+                        _isLoading = false;
+                        if (ok) _submitted = true;
+                      });
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      setState(() => _isLoading = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Erreur: ${e.toString()}')),
+                      );
+                    }
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: FlexColors.primary500,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Programmer la visite', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: _isLoading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Programmer la visite', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

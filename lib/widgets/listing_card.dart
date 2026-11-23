@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart' show Share;
 import '../theme/flex_theme.dart';
 import '../models/models.dart';
 import '../services/storage_service.dart';
+import '../services/auth_service.dart';
+import '../repositories/favorite_repository.dart';
 import 'flex_badge.dart';
 import 'listing_detail_bottom_sheet.dart';
-import '../screens/booking/booking_confirmation_screen.dart';
-import '../screens/chat/chat_screen.dart';
+import '../shared/widgets/adaptive_overlay.dart';
 
 class ListingCard extends StatefulWidget {
   final Listing listing;
@@ -21,6 +23,7 @@ class ListingCard extends StatefulWidget {
 
 class _ListingCardState extends State<ListingCard> {
   late bool _isFavorite;
+  final _favRepo = FavoriteRepository();
 
   @override
   void initState() {
@@ -29,8 +32,21 @@ class _ListingCardState extends State<ListingCard> {
   }
 
   void _toggleFav() async {
-    await StorageService.toggleFavorite(widget.listing.id);
-    setState(() => _isFavorite = !_isFavorite);
+    try {
+      if (AuthService().isLoggedIn) {
+        if (_isFavorite) {
+          await _favRepo.removeFavorite(widget.listing.id);
+        } else {
+          await _favRepo.addFavorite(widget.listing.id);
+        }
+      } else {
+        await StorageService.toggleFavorite(widget.listing.id);
+      }
+      if (!mounted) return;
+      setState(() => _isFavorite = !_isFavorite);
+    } catch (e) {
+      debugPrint('Favorite toggle error: $e');
+    }
   }
 
   @override
@@ -41,11 +57,11 @@ class _ListingCardState extends State<ListingCard> {
       onTap: widget.onTap ?? () async {
         await StorageService.addRecentView(widget.listing.id);
         if (!context.mounted) return;
-        showModalBottomSheet(
+        AdaptiveOverlay.show(
           context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => ListingDetailBottomSheet(listing: widget.listing),
+          title: widget.listing.titre,
+          isSidePanel: true,
+          child: ListingDetailBottomSheet(listing: widget.listing),
         );
       },
       child: Container(
@@ -61,35 +77,31 @@ class _ListingCardState extends State<ListingCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image placeholder
-            Stack(
-              children: [
-                Container(
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(FlexRadius.lg),
+            Flexible(
+              fit: FlexFit.loose,
+              child: Stack(
+                children: [
+                  Container(
+                    height: 170,
+                    decoration: BoxDecoration(
+                      color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(FlexRadius.lg),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(FlexRadius.lg),
+                      ),
+                      child: widget.listing.photos.isEmpty
+                          ? _imagePlaceholder(isDark)
+                          : Image.network(
+                              widget.listing.photos.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _imagePlaceholder(isDark),
+                            ),
                     ),
                   ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.home_rounded,
-                          size: 48,
-                          color: isDark ? FlexColors.neutral600 : FlexColors.neutral300,
-                        ),
-                        Text(
-                          widget.listing.ville,
-                          style: FlexTextStyles.caption.copyWith(
-                            color: isDark ? FlexColors.neutral500 : FlexColors.neutral400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
                 // Favorite button
                 Positioned(
@@ -174,14 +186,12 @@ class _ListingCardState extends State<ListingCard> {
                   right: 12,
                   child: GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            listing: widget.listing,
-                            initialMessage: 'Bonjour, je suis intéressé par votre logement "${widget.listing.titre}". Est-il disponible ?',
-                          ),
-                        ),
+                      context.push(
+                        '/chat/${widget.listing.hoteId}',
+                        extra: {
+                          'listing': widget.listing,
+                          'initialMessage': 'Bonjour, je suis intéressé par votre logement "${widget.listing.titre}". Est-il disponible ?',
+                        },
                       );
                     },
                     child: Container(
@@ -207,9 +217,10 @@ class _ListingCardState extends State<ListingCard> {
                 ),
               ],
             ),
+          ),
 
-            // Content
-            Padding(
+              // Content
+              Padding(
               padding: const EdgeInsets.all(FlexSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,10 +245,14 @@ class _ListingCardState extends State<ListingCard> {
                         color: FlexColors.neutral400,
                       ),
                       const SizedBox(width: 2),
-                      Text(
-                        '${widget.listing.quartier}, ${widget.listing.ville}',
-                        style: FlexTextStyles.caption.copyWith(
-                          color: FlexColors.neutral500,
+                      Expanded(
+                        child: Text(
+                          '${widget.listing.quartier}, ${widget.listing.ville}',
+                          style: FlexTextStyles.caption.copyWith(
+                            color: FlexColors.neutral500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -245,10 +260,20 @@ class _ListingCardState extends State<ListingCard> {
                   const SizedBox(height: FlexSpacing.sm),
 
                   // Equipements
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: widget.listing.equipements.take(3).map((e) => _EquipChip(label: e)).toList(),
+                  SizedBox(
+                    height: 24,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      clipBehavior: Clip.none,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < widget.listing.equipements.length && i < 3; i++) ...[
+                            _EquipChip(label: widget.listing.equipements[i]),
+                            if (i < 2 && widget.listing.equipements.length > 1) const SizedBox(width: 6),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: FlexSpacing.sm),
 
@@ -263,18 +288,20 @@ class _ListingCardState extends State<ListingCard> {
                           color: isDark ? FlexColors.neutral0 : FlexColors.neutral700,
                         ),
                       ),
-                      Text(
-                        ' (${widget.listing.nombreAvis} avis)',
-                        style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400),
+                      Flexible(
+                        child: Text(
+                          ' (${widget.listing.nombreAvis} avis)',
+                          style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral400),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       const Spacer(),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BookingConfirmationScreen(listing: widget.listing),
-                            ),
+                          context.push(
+                            '/book/${widget.listing.id}',
+                            extra: widget.listing,
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -291,6 +318,27 @@ class _ListingCardState extends State<ListingCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _imagePlaceholder(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.home_rounded,
+            size: 48,
+            color: isDark ? FlexColors.neutral600 : FlexColors.neutral300,
+          ),
+          Text(
+            widget.listing.ville,
+            style: FlexTextStyles.caption.copyWith(
+              color: isDark ? FlexColors.neutral500 : FlexColors.neutral400,
+            ),
+          ),
+        ],
       ),
     );
   }

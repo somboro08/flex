@@ -1,0 +1,2 @@
+ALTER TABLE notifications ALTER COLUMN body DROP NOT NULL;
+ALTER TABLE notifications DROP COLUMN IF EXISTS ref_id;

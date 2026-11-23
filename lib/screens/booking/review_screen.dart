@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/review_repository.dart';
 
 class ReviewScreen extends StatefulWidget {
   final Listing listing;
@@ -22,15 +23,32 @@ class _ReviewScreenState extends State<ReviewScreen> {
   ];
   final Set<String> _selectedTags = {};
 
+  final _reviewRepo = ReviewRepository();
+
   Future<void> _submit() async {
     if (_note == 0) return;
     setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci pour votre avis !')),
+    try {
+      final ok = await _reviewRepo.createReview(
+        bookingId: widget.booking.id,
+        listingId: widget.listing.id,
+        note: _note,
+        commentaire: _commentController.text.trim(),
       );
-      Navigator.pop(context);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ok ? 'Merci pour votre avis !' : 'Erreur lors de l\'envoi')),
+        );
+        if (ok) Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
     }
   }
 

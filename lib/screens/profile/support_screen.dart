@@ -34,8 +34,8 @@ class SupportScreen extends StatelessWidget {
                 isDark: isDark,
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'Chat avec nous',
-                subtitle: 'Discutez en direct avec un conseiller',
-                onTap: () {},
+                subtitle: 'Discutez en direct sur WhatsApp',
+                onTap: () => _launchUrl('https://wa.me/22900000000'),
               ),
               _SupportCard(
                 isDark: isDark,

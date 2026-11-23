@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/rental_models.dart';
+import '../../repositories/rental_repository.dart';
 import '../../utils/rental_utils.dart';
 
 class RefundRequestScreen extends StatefulWidget {
@@ -14,12 +15,44 @@ class RefundRequestScreen extends StatefulWidget {
 class _RefundRequestScreenState extends State<RefundRequestScreen> {
   String _reason = 'autre';
   final _commentController = TextEditingController();
+  final _rentalRepo = RentalRepository();
   bool _submitted = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final rental = widget.rental;
+    if (rental == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Sélectionnez d'abord une location depuis la liste")),
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      final comment = _commentController.text.trim();
+      await _rentalRepo.createRequest(
+        rental.id,
+        type: 'refund',
+        message: comment.isEmpty ? _reason : '$_reason : $comment',
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _submitted = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Envoi impossible, réessayez : ${e.toString()}')),
+      );
+    }
   }
 
   @override
@@ -141,14 +174,16 @@ class _RefundRequestScreenState extends State<RefundRequestScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => setState(() => _submitted = true),
+                onPressed: _isSubmitting ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF8B5CF6),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Soumettre la demande', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: _isSubmitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Soumettre la demande', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
           ],

@@ -43,7 +43,7 @@ type User struct {
 	LastLoginAt          *time.Time      `json:"lastLoginAt,omitempty"`
 	FailedLoginAttempts  int             `gorm:"default:0" json:"-"`
 	LockedUntil          *time.Time      `json:"-"`
-	Favorites            []uuid.UUID     `gorm:"type:uuid[];default:'{}'" json:"favorites,omitempty"`
+	Favorites            StringArray      `gorm:"type:text[];default:'{}'" json:"favorites,omitempty"`
 	CreatedAt            time.Time       `json:"createdAt"`
 	UpdatedAt            time.Time       `json:"updatedAt"`
 	DeletedAt            gorm.DeletedAt  `gorm:"index" json:"-"`

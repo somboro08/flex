@@ -15,9 +15,12 @@ type Config struct {
 	JWT      JWTConfig
 	Email    EmailConfig
 	SMS      SMSConfig
+	Google   GoogleConfig
+	Upload   UploadConfig
 	RateLimit RateLimitConfig
-	CORS     CORSConfig
-	Momo     MomoConfig
+	CORS       CORSConfig
+	Momo       MomoConfig
+	Cloudinary CloudinaryConfig
 }
 
 type ServerConfig struct {
@@ -61,6 +64,14 @@ type SMSConfig struct {
 	TwilioPhone      string
 }
 
+type GoogleConfig struct {
+	ClientID string
+}
+
+type UploadConfig struct {
+	Dir string
+}
+
 type RateLimitConfig struct {
 	Requests int
 	Window   time.Duration
@@ -74,6 +85,12 @@ type MomoConfig struct {
 	APIKey      string
 	APISecret   string
 	Environment string
+}
+
+type CloudinaryConfig struct {
+	CloudName string
+	APIKey    string
+	APISecret string
 }
 
 func Load() (*Config, error) {
@@ -96,9 +113,10 @@ func Load() (*Config, error) {
 			LogLevel:    v.GetString("LOG_LEVEL"),
 		},
 		Database: DatabaseConfig{
-			URL:          v.GetString("DATABASE_URL"),
-			MaxOpenConns: v.GetInt("DATABASE_MAX_OPEN_CONNS"),
-			MaxIdleConns: v.GetInt("DATABASE_MAX_IDLE_CONNS"),
+			URL:             v.GetString("DATABASE_URL"),
+			MaxOpenConns:    v.GetInt("DATABASE_MAX_OPEN_CONNS"),
+			MaxIdleConns:    v.GetInt("DATABASE_MAX_IDLE_CONNS"),
+			ConnMaxLifetime: time.Duration(v.GetInt("DATABASE_CONN_MAX_LIFETIME")) * time.Second,
 		},
 		Redis: RedisConfig{
 			URL:      v.GetString("REDIS_URL"),
@@ -117,6 +135,12 @@ func Load() (*Config, error) {
 			TwilioAuthToken:  v.GetString("TWILIO_AUTH_TOKEN"),
 			TwilioPhone:      v.GetString("TWILIO_PHONE_NUMBER"),
 		},
+		Google: GoogleConfig{
+			ClientID: v.GetString("GOOGLE_CLIENT_ID"),
+		},
+		Upload: UploadConfig{
+			Dir: v.GetString("UPLOAD_DIR"),
+		},
 		RateLimit: RateLimitConfig{
 			Requests: v.GetInt("RATE_LIMIT_REQUESTS"),
 			Window:   time.Duration(v.GetInt("RATE_LIMIT_WINDOW")) * time.Second,
@@ -128,6 +152,11 @@ func Load() (*Config, error) {
 			APIKey:      v.GetString("MTN_MOMO_API_KEY"),
 			APISecret:   v.GetString("MTN_MOMO_API_SECRET"),
 			Environment: v.GetString("MTN_MOMO_ENVIRONMENT"),
+		},
+		Cloudinary: CloudinaryConfig{
+			CloudName: v.GetString("CLOUDINARY_CLOUD_NAME"),
+			APIKey:    v.GetString("CLOUDINARY_API_KEY"),
+			APISecret: v.GetString("CLOUDINARY_API_SECRET"),
 		},
 	}
 
@@ -189,6 +218,9 @@ func (cfg *Config) validate() error {
 	}
 	if cfg.RateLimit.Window == 0 {
 		cfg.RateLimit.Window = 60 * time.Second
+	}
+	if cfg.Upload.Dir == "" {
+		cfg.Upload.Dir = "uploads"
 	}
 	return nil
 }

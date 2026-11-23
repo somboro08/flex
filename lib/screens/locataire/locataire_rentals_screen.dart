@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/rental_models.dart';
+import '../../repositories/rental_repository.dart';
 import '../../utils/rental_utils.dart';
 import '../../widgets/rental_progress_widget.dart';
-import 'advance_payment_screen.dart';
-import 'refund_request_screen.dart';
-import 'renew_booking_screen.dart';
+import '../../core/responsive/content_container.dart';
+import '../../shared/widgets/adaptive_overlay.dart';
+import '../../shared/widgets/adaptive_dialog_content.dart';
 
 class LocataireRentalsScreen extends StatefulWidget {
   const LocataireRentalsScreen({super.key});
@@ -15,41 +17,34 @@ class LocataireRentalsScreen extends StatefulWidget {
 }
 
 class _LocataireRentalsScreenState extends State<LocataireRentalsScreen> {
-  final List<MonthlyRental> _myRentals = [
-    MonthlyRental(
-      id: 'r1', listingId: 'l1', listingTitle: 'Villa Ouidah', listingVille: 'Ouidah',
-      listingPhoto: '', hoteId: 'h1', hoteNom: 'Jean Hôte',
-      voyageurId: 'v1', voyageurNom: 'Moi',
-      voyageurTelephone: '+229 97 11 22 33',
-      startDate: DateTime(2026, 1, 15), monthlyRent: 150000, billingDay: 5,
-      payments: [
-        RentalPayment(id: 'p1', rentalId: 'r1', periodLabel: '2026-01', amount: 150000, dueDate: DateTime(2026, 1, 5), paidAt: DateTime(2026, 1, 3), status: PaymentStatus.advance),
-        RentalPayment(id: 'p2', rentalId: 'r1', periodLabel: '2026-02', amount: 150000, dueDate: DateTime(2026, 2, 5), paidAt: DateTime(2026, 2, 4), status: PaymentStatus.onTime),
-        RentalPayment(id: 'p3', rentalId: 'r1', periodLabel: '2026-03', amount: 150000, dueDate: DateTime(2026, 3, 5), paidAt: DateTime(2026, 3, 3), status: PaymentStatus.advance),
-        RentalPayment(id: 'p4', rentalId: 'r1', periodLabel: '2026-04', amount: 150000, dueDate: DateTime(2026, 4, 5), paidAt: DateTime(2026, 4, 2), status: PaymentStatus.advance),
-        RentalPayment(id: 'p5', rentalId: 'r1', periodLabel: '2026-05', amount: 150000, dueDate: DateTime(2026, 5, 5), paidAt: DateTime(2026, 5, 1), status: PaymentStatus.advance),
-        RentalPayment(id: 'p6', rentalId: 'r1', periodLabel: '2026-06', amount: 150000, dueDate: DateTime(2026, 6, 5), paidAt: DateTime(2026, 5, 28), status: PaymentStatus.advance),
-        RentalPayment(id: 'p7', rentalId: 'r1', periodLabel: '2026-07', amount: 150000, dueDate: DateTime(2026, 7, 5), status: PaymentStatus.unpaid),
-      ],
-      createdAt: DateTime(2026, 1, 10),
-    ),
-    MonthlyRental(
-      id: 'r4', listingId: 'l3', listingTitle: 'Chambre Parakou', listingVille: 'Parakou',
-      listingPhoto: '', hoteId: 'h2', hoteNom: 'Mme Akobi',
-      voyageurId: 'v1', voyageurNom: 'Moi',
-      voyageurTelephone: '+229 97 11 22 33',
-      startDate: DateTime(2026, 2, 10), endDate: DateTime(2026, 8, 10), monthlyRent: 50000, billingDay: 10,
-      payments: [
-        RentalPayment(id: 'p22', rentalId: 'r4', periodLabel: '2026-02', amount: 50000, dueDate: DateTime(2026, 2, 10), paidAt: DateTime(2026, 2, 8), status: PaymentStatus.onTime),
-        RentalPayment(id: 'p23', rentalId: 'r4', periodLabel: '2026-03', amount: 50000, dueDate: DateTime(2026, 3, 10), paidAt: DateTime(2026, 3, 10), status: PaymentStatus.onTime),
-        RentalPayment(id: 'p24', rentalId: 'r4', periodLabel: '2026-04', amount: 50000, dueDate: DateTime(2026, 4, 10), paidAt: DateTime(2026, 4, 5), status: PaymentStatus.advance),
-        RentalPayment(id: 'p25', rentalId: 'r4', periodLabel: '2026-05', amount: 50000, dueDate: DateTime(2026, 5, 10), paidAt: DateTime(2026, 5, 25), status: PaymentStatus.late),
-        RentalPayment(id: 'p26', rentalId: 'r4', periodLabel: '2026-06', amount: 50000, dueDate: DateTime(2026, 6, 10), paidAt: DateTime(2026, 6, 9), status: PaymentStatus.onTime),
-        RentalPayment(id: 'p27', rentalId: 'r4', periodLabel: '2026-07', amount: 50000, dueDate: DateTime(2026, 7, 10), status: PaymentStatus.unpaid),
-      ],
-      createdAt: DateTime(2026, 2, 5),
-    ),
-  ];
+  final _rentalRepo = RentalRepository();
+  List<MonthlyRental> _myRentals = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final list = await _rentalRepo.getRentals();
+      if (!mounted) return;
+      setState(() {
+        _myRentals = list;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading rentals: $e');
+      if (!mounted) return;
+      setState(() {
+        _myRentals = [];
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,34 +55,56 @@ class _LocataireRentalsScreenState extends State<LocataireRentalsScreen> {
       backgroundColor: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
       appBar: AppBar(
         title: const Text('Mes locations', style: FlexTextStyles.h3),
-        leading: const BackButton(),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(FlexSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeaderSummary(isDark, totalMonthly),
-            const SizedBox(height: 20),
-            ..._myRentals.map((r) => RentalProgressCard(
-              tenantName: r.hoteNom,
-              listingTitle: '${r.listingTitle} - ${r.listingVille}',
-              monthlyRent: r.monthlyRent,
-              timeProgress: r.timeProgress,
-              paymentProgress: r.paymentCycleProgress,
-              daysUntilNextPayment: r.daysUntilNextPayment,
-              lateDays: r.lateDays,
-              paymentStatus: r.currentPaymentStatus,
-              isActive: r.isActive,
-              onTap: () => _showRentalActions(context, r),
-            )),
-            const SizedBox(height: 20),
-            _buildQuickActions(isDark),
-          ],
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: FlexColors.primary500))
+          : RefreshIndicator(
+              onRefresh: _load,
+              color: FlexColors.primary500,
+              child: AdaptiveContentContainer(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: FlexSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    _buildHeaderSummary(isDark, totalMonthly),
+                    const SizedBox(height: 20),
+                    if (_myRentals.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.house_siding_rounded, size: 56, color: FlexColors.neutral300),
+                              const SizedBox(height: 12),
+                              Text('Aucune location en cours', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: FlexColors.neutral500)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ..._myRentals.map((r) => RentalProgressCard(
+                        tenantName: r.hoteNom,
+                        listingTitle: '${r.listingTitle} - ${r.listingVille}',
+                        monthlyRent: r.monthlyRent,
+                        timeProgress: r.timeProgress,
+                        paymentProgress: r.paymentCycleProgress,
+                        daysUntilNextPayment: r.daysUntilNextPayment,
+                        lateDays: r.lateDays,
+                        paymentStatus: r.currentPaymentStatus,
+                        isActive: r.isActive,
+                        onTap: () => _showRentalActions(context, r),
+                      )),
+                    const SizedBox(height: 20),
+                    _buildQuickActions(isDark),
+                  ],
+                ),
+              ),
+            ),
+          ),
     );
   }
 
@@ -148,19 +165,19 @@ class _LocataireRentalsScreenState extends State<LocataireRentalsScreen> {
             Expanded(child: _ActionButton(
               icon: Icons.payments_rounded, label: 'Payer en avance',
               color: const Color(0xFF3B82F6),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancePaymentScreen())),
+              onTap: () => context.push('/advance-payment'),
             )),
             const SizedBox(width: 8),
             Expanded(child: _ActionButton(
               icon: Icons.replay_rounded, label: 'Renouveler',
               color: const Color(0xFF10B981),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RenewBookingScreen())),
+              onTap: () => context.push('/renew-booking'),
             )),
             const SizedBox(width: 8),
             Expanded(child: _ActionButton(
               icon: Icons.receipt_long_rounded, label: 'Remboursement',
               color: const Color(0xFF8B5CF6),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RefundRequestScreen())),
+              onTap: () => context.push('/refund-request'),
             )),
           ],
         ),
@@ -169,39 +186,30 @@ class _LocataireRentalsScreenState extends State<LocataireRentalsScreen> {
   }
 
   void _showRentalActions(BuildContext context, MonthlyRental rental) {
-    showModalBottomSheet(
+    AdaptiveOverlay.show(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(FlexRadius.xl)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(FlexSpacing.lg),
+      child: AdaptiveDialogContent(
+        title: 'Gérer ma location',
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: FlexColors.neutral300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Text(rental.listingTitle, style: FlexTextStyles.h3),
-            Text(rental.listingVille, style: TextStyle(color: FlexColors.neutral500)),
-            const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.payments_rounded, color: Color(0xFF3B82F6)),
               title: const Text('Payer en avance'),
               subtitle: const Text('Effectuer un paiement anticipé'),
-              onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AdvancePaymentScreen(rental: rental))); },
+              onTap: () { Navigator.pop(context); context.push('/advance-payment', extra: rental); },
             ),
             ListTile(
               leading: const Icon(Icons.replay_rounded, color: Color(0xFF10B981)),
               title: const Text('Renouveler le bail'),
               subtitle: const Text('Prolonger votre période de location'),
-              onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => RenewBookingScreen(rental: rental))); },
+              onTap: () { Navigator.pop(context); context.push('/renew-booking', extra: rental); },
             ),
             ListTile(
               leading: const Icon(Icons.receipt_long_rounded, color: Color(0xFF8B5CF6)),
               title: const Text('Demander un remboursement'),
               subtitle: const Text('Soumettre une demande de remboursement'),
-              onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => RefundRequestScreen(rental: rental))); },
+              onTap: () { Navigator.pop(context); context.push('/refund-request', extra: rental); },
             ),
             ListTile(
               leading: const Icon(Icons.description_rounded, color: FlexColors.primary500),

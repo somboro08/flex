@@ -10,6 +10,7 @@ class FlexUser {
   final String nom;
   final String prenom;
   final String telephone;
+  final String? email;
   final String? photoUrl;
   final UserRole role;
   final bool isVerified;
@@ -24,6 +25,7 @@ class FlexUser {
     required this.nom,
     required this.prenom,
     required this.telephone,
+    this.email,
     this.photoUrl,
     required this.role,
     this.isVerified = false,
@@ -36,12 +38,24 @@ class FlexUser {
 
   String get fullName => '$prenom $nom';
 
+  String get roleLabel {
+    switch (role) {
+      case UserRole.hote:
+        return 'Propriétaire';
+      case UserRole.agent:
+        return 'Agent';
+      default:
+        return 'Voyageur';
+    }
+  }
+
   factory FlexUser.fromMap(Map<String, dynamic> map) {
     return FlexUser(
       id: map['id'] ?? '',
       nom: map['nom'] ?? '',
       prenom: map['prenom'] ?? '',
       telephone: map['telephone'] ?? '',
+      email: map['email'],
       photoUrl: map['photoUrl'],
       role: UserRole.values.firstWhere(
         (r) => r.name == map['role'],
@@ -64,6 +78,7 @@ class FlexUser {
     'nom': nom,
     'prenom': prenom,
     'telephone': telephone,
+    'email': email,
     'photoUrl': photoUrl,
     'role': role.name,
     'isVerified': isVerified,
@@ -178,6 +193,10 @@ class Listing {
     'isDisponible': isDisponible,
     'createdAt': createdAt.toIso8601String(),
   };
+
+  // JSON aliases for cache compatibility
+  factory Listing.fromJson(Map<String, dynamic> json) => Listing.fromMap(json);
+  Map<String, dynamic> toJson() => toMap();
 }
 
 // ─────────────────────────────────────────────
@@ -199,7 +218,9 @@ class Booking {
   final double montantTotal;
   final BookingStatus status;
   final PaymentMethod? paymentMethod;
+  final String paymentStatus;
   final bool isPaid;
+  final String? transactionId;
   final DateTime createdAt;
 
   Booking({
@@ -213,7 +234,9 @@ class Booking {
     required this.montantTotal,
     this.status = BookingStatus.pending,
     this.paymentMethod,
+    this.paymentStatus = 'pending',
     this.isPaid = false,
+    this.transactionId,
     required this.createdAt,
   });
 
@@ -237,7 +260,9 @@ class Booking {
               orElse: () => PaymentMethod.cash,
             )
           : null,
+      paymentStatus: map['paymentStatus'] ?? 'pending',
       isPaid: map['isPaid'] ?? false,
+      transactionId: map['transactionId'],
       createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
@@ -253,7 +278,9 @@ class Booking {
     'montantTotal': montantTotal,
     'status': status.name,
     'paymentMethod': paymentMethod?.name,
+    'paymentStatus': paymentStatus,
     'isPaid': isPaid,
+    'transactionId': transactionId,
     'createdAt': createdAt.toIso8601String(),
   };
 }

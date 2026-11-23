@@ -54,6 +54,9 @@ func (r *ListingRepository) FindAll(ctx context.Context, filters map[string]inte
 	if certification, ok := filters["certification"]; ok {
 		query = query.Where("certification = ?", certification)
 	}
+	if listingType, ok := filters["type"]; ok {
+		query = query.Where("type_logement = ?", listingType)
+	}
 	if isDisponible, ok := filters["is_disponible"]; ok {
 		query = query.Where("is_disponible = ?", isDisponible)
 	}
@@ -84,8 +87,76 @@ func (r *ListingRepository) FindByHoteID(ctx context.Context, hoteID uuid.UUID) 
 	return listings, err
 }
 
+func (r *ListingRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Listing, error) {
+	if len(ids) == 0 {
+		return []models.Listing{}, nil
+	}
+	var listings []models.Listing
+	err := r.db.WithContext(ctx).
+		Preload("Hote").
+		Where("id IN ? AND deleted_at IS NULL", ids).
+		Find(&listings).Error
+	return listings, err
+}
+
 func (r *ListingRepository) Update(ctx context.Context, listing *models.Listing) error {
 	return r.db.WithContext(ctx).Save(listing).Error
+}
+
+// UpdateFields applies only the allowed fields (maps JSON camelCase keys to DB columns).
+func (r *ListingRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields map[string]interface{}) error {
+	columnMapping := map[string]string{
+		"titre":           "titre",
+		"description":     "description",
+		"typeLogement":    "type_logement",
+		"ville":           "ville",
+		"quartier":        "quartier",
+		"adresse":         "adresse",
+		"latitude":        "latitude",
+		"longitude":       "longitude",
+		"prixParNuit":     "prix_par_nuit",
+		"nombreChambres":  "nombre_chambres",
+		"photos":          "photos",
+		"equipements":     "equipements",
+		"isDisponible":    "is_disponible",
+	}
+
+	updates := map[string]interface{}{}
+	for key, value := range fields {
+		if column, ok := columnMapping[key]; ok {
+			updates[column] = value
+		}
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).Model(&models.Listing{}).Where("id = ? AND deleted_at IS NULL", id).Updates(updates).Error
+}
+
+// StatsByType returns the number of available listings grouped by type.
+func (r *ListingRepository) StatsByType(ctx context.Context) (map[string]int64, int64, error) {
+	type row struct {
+		Type  string
+		Count int64
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).Model(&models.Listing{}).
+		Select("type_logement AS type, COUNT(*) AS count").
+		Where("deleted_at IS NULL AND is_disponible = ?", true).
+		Group("type_logement").Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	stats := make(map[string]int64)
+	var total int64
+	for _, r := range rows {
+		stats[r.Type] = r.Count
+		total += r.Count
+	}
+	return stats, total, nil
 }
 
 func (r *ListingRepository) UpdateCertification(ctx context.Context, id uuid.UUID, status models.CertificationStatus) error {

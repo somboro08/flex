@@ -1,20 +1,26 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/somboro08/flex-api/internal/middleware"
+	"github.com/somboro08/flex-api/internal/models"
+	"github.com/somboro08/flex-api/internal/repository"
 	"github.com/somboro08/flex-api/internal/services"
 	"github.com/somboro08/flex-api/pkg/response"
 )
 
 type AuthHandler struct {
 	authService *services.AuthService
+	userRepo    *repository.UserRepository
+	listingRepo *repository.ListingRepository
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService *services.AuthService, userRepo *repository.UserRepository, listingRepo *repository.ListingRepository) *AuthHandler {
+	return &AuthHandler{authService: authService, userRepo: userRepo, listingRepo: listingRepo}
 }
 
 type registerInput struct {
@@ -81,7 +87,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	result, err := h.authService.Register(c.Request.Context(), req, deviceInfo, ipAddress, userAgent)
 	if err != nil {
-		response.Error(c, http.StatusConflict, "REGISTRATION_FAILED", err.Error())
+		if errors.Is(err, services.ErrPhoneAlreadyUsed) || errors.Is(err, services.ErrEmailAlreadyUsed) {
+			response.Error(c, http.StatusConflict, "ALREADY_EXISTS", err.Error())
+			return
+		}
+		response.Error(c, http.StatusBadRequest, "REGISTRATION_FAILED", err.Error())
 		return
 	}
 
@@ -171,9 +181,15 @@ func (h *AuthHandler) SendOTP(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "Code envoyé", gin.H{
-		"code": code,
-	})
+	// En production, le code est transmis par SMS/e-mail via les services dédiés.
+	// En développement, on le retourne pour faciliter les tests.
+	if h.authService.IsDevelopment() {
+		response.OK(c, "Code envoyé", gin.H{
+			"code": code,
+		})
+		return
+	}
+	response.OK(c, "Code envoyé", nil)
 }
 
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
@@ -245,4 +261,170 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	response.OK(c, "Profil récupéré", user)
+}
+
+type updateProfileInput struct {
+	Nom       string  `json:"nom"`
+	Prenom    string  `json:"prenom"`
+	Telephone string  `json:"telephone"`
+	Email     *string `json:"email"`
+	PhotoURL  *string `json:"photoUrl"`
+}
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	var input updateProfileInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, "Données invalides: "+err.Error())
+		return
+	}
+
+	fields := map[string]interface{}{}
+	if input.Nom != "" {
+		fields["nom"] = input.Nom
+	}
+	if input.Prenom != "" {
+		fields["prenom"] = input.Prenom
+	}
+	if input.Telephone != "" {
+		fields["telephone"] = input.Telephone
+	}
+	if input.Email != nil {
+		fields["email"] = input.Email
+	}
+	if input.PhotoURL != nil {
+		fields["photo_url"] = input.PhotoURL
+	}
+
+	if err := h.authService.UpdateProfile(c.Request.Context(), userID, fields); err != nil {
+		response.InternalError(c, "Erreur lors de la mise à jour du profil")
+		return
+	}
+
+	user, _ := h.authService.GetProfile(c.Request.Context(), userID)
+	response.OK(c, "Profil mis à jour", user)
+}
+
+type submitIdentityInput struct {
+	IDCardURL           string `json:"idCardUrl"`
+	BirthCertificateURL string `json:"birthCertificateUrl"`
+}
+
+func (h *AuthHandler) SubmitIdentity(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	var input submitIdentityInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, "Données invalides")
+		return
+	}
+
+	fields := map[string]interface{}{
+		"verification_status": "pending",
+	}
+	if input.IDCardURL != "" {
+		fields["id_card_url"] = input.IDCardURL
+	}
+	if input.BirthCertificateURL != "" {
+		fields["birth_certificate_url"] = input.BirthCertificateURL
+	}
+
+	if err := h.authService.UpdateProfile(c.Request.Context(), userID, fields); err != nil {
+		response.InternalError(c, "Erreur lors de la soumission des documents")
+		return
+	}
+
+	response.OK(c, "Documents soumis — vérification en cours", nil)
+}
+
+type changeRoleInput struct {
+	Role string `json:"role" binding:"required"`
+}
+
+// ChangeRole permet à un utilisateur de devenir propriétaire (hote).
+func (h *AuthHandler) ChangeRole(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	var input changeRoleInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, "Données invalides")
+		return
+	}
+
+	user, err := h.authService.ChangeRole(c.Request.Context(), userID, models.UserRole(input.Role))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "ROLE_CHANGE_FAILED", err.Error())
+		return
+	}
+
+	response.OK(c, "Rôle mis à jour", user)
+}
+
+// AddFavorite enregistre un logement dans les favoris de l'utilisateur.
+func (h *AuthHandler) AddFavorite(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	listingID, err := uuid.Parse(c.Param("listingId"))
+	if err != nil {
+		response.BadRequest(c, "ID du logement invalide")
+		return
+	}
+
+	if _, err := h.listingRepo.FindByID(c.Request.Context(), listingID); err != nil {
+		response.NotFound(c, "Logement non trouvé")
+		return
+	}
+
+	if err := h.userRepo.AddFavorite(c.Request.Context(), userID, listingID); err != nil {
+		response.InternalError(c, "Erreur lors de l'ajout aux favoris")
+		return
+	}
+
+	response.OK(c, "Ajouté aux favoris", nil)
+}
+
+// RemoveFavorite retire un logement des favoris de l'utilisateur.
+func (h *AuthHandler) RemoveFavorite(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	listingID, err := uuid.Parse(c.Param("listingId"))
+	if err != nil {
+		response.BadRequest(c, "ID du logement invalide")
+		return
+	}
+
+	if err := h.userRepo.RemoveFavorite(c.Request.Context(), userID, listingID); err != nil {
+		response.InternalError(c, "Erreur lors du retrait des favoris")
+		return
+	}
+
+	response.OK(c, "Retiré des favoris", nil)
+}
+
+// ListFavorites renvoie les logements favoris de l'utilisateur.
+func (h *AuthHandler) ListFavorites(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	user, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	if err != nil {
+		response.NotFound(c, "Utilisateur non trouvé")
+		return
+	}
+
+	favIDs := make([]uuid.UUID, 0, len(user.Favorites))
+	for _, fav := range user.Favorites {
+		id, err := uuid.Parse(fav)
+		if err == nil {
+			favIDs = append(favIDs, id)
+		}
+	}
+
+	listings, err := h.listingRepo.FindByIDs(c.Request.Context(), favIDs)
+	if err != nil {
+		response.InternalError(c, "Erreur lors de la récupération des favoris")
+		return
+	}
+
+	response.OK(c, "Mes favoris", listings)
 }

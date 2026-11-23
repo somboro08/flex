@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/listing_repository.dart';
+import '../../repositories/booking_repository.dart';
+import '../../repositories/visit_repository.dart';
+import '../../core/responsive/breakpoints.dart';
+import '../../core/responsive/content_container.dart';
+import '../../shared/widgets/adaptive_grid.dart';
+import '../../shared/widgets/adaptive_overlay.dart';
 
 class HoteDashboardScreen extends StatefulWidget {
   const HoteDashboardScreen({super.key});
@@ -11,68 +19,81 @@ class HoteDashboardScreen extends StatefulWidget {
 
 class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
   int _selectedTab = 0;
+  final _listingRepo = ListingRepository();
+  final _bookingRepo = BookingRepository();
+  final _visitRepo = VisitRepository();
+  List<Listing> _mesListings = [];
+  List<Booking> _reservations = [];
+  int _pendingVisits = 0;
+  bool _isLoading = true;
 
-  final List<Listing> _mesListings = [
-    Listing(
-      id: '1', hoteId: 'h1', titre: 'Chambre calme chez Madame Akobi',
-      description: 'Chambre propre avec ventilateur.', ville: 'Parakou',
-      quartier: 'Zongo', adresse: 'Rue des Artisans', latitude: 9.337,
-      longitude: 2.628, prixParNuit: 5000, photos: [],
-      equipements: ['Ventilateur', 'WiFi'], certification: CertificationStatus.certified,
-      note: 4.8, nombreAvis: 23, createdAt: DateTime.now(),
-    ),
-    Listing(
-      id: '2', hoteId: 'h1', titre: 'Studio meublé Centre-ville',
-      description: 'Studio indépendant avec cuisine.', ville: 'Parakou',
-      quartier: 'Kpébié', adresse: 'Avenue de la Liberté', latitude: 9.341,
-      longitude: 2.624, prixParNuit: 8500, photos: [],
-      equipements: ['Climatisation', 'WiFi', 'Cuisine'], certification: CertificationStatus.certified,
-      note: 4.6, nombreAvis: 11, createdAt: DateTime.now(),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  final List<Booking> _reservations = [
-    Booking(
-      id: 'b1', voyageurId: 'v1', listingId: '1', hoteId: 'h1',
-      dateArrivee: DateTime.now().add(const Duration(days: 3)),
-      dateDepart: DateTime.now().add(const Duration(days: 6)),
-      nombreNuits: 3, montantTotal: 15000, status: BookingStatus.confirmed,
-      paymentMethod: PaymentMethod.mtnMomo, isPaid: true, createdAt: DateTime.now(),
-    ),
-    Booking(
-      id: 'b2', voyageurId: 'v2', listingId: '2', hoteId: 'h1',
-      dateArrivee: DateTime.now().add(const Duration(days: 10)),
-      dateDepart: DateTime.now().add(const Duration(days: 12)),
-      nombreNuits: 2, montantTotal: 17000, status: BookingStatus.pending,
-      paymentMethod: PaymentMethod.wave, isPaid: false, createdAt: DateTime.now(),
-    ),
-  ];
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final listings = await _listingRepo.getMyListings();
+      final bookings = await _bookingRepo.getMyBookings();
+      int pendingVisits = 0;
+      try {
+        final visits = await _visitRepo.getMyVisits();
+        pendingVisits = visits.where((v) => v.status == VisitStatus.pending).length;
+      } catch (e) {
+        debugPrint('Visits load error: $e');
+      }
+      if (mounted) {
+        setState(() {
+          _mesListings = listings;
+          _reservations = bookings;
+          _pendingVisits = pendingVisits;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Hote dashboard error: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(isDark),
-            _buildStats(isDark),
-            const SizedBox(height: 4),
-            _buildRentalManagementBanner(isDark),
-            _buildVisitRequestBanner(isDark),
-            const SizedBox(height: 8),
-            _buildTabBar(isDark),
-            Expanded(
-              child: _selectedTab == 0
-                  ? _buildListingsTab(isDark)
-                  : _buildReservationsTab(isDark),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: AdaptiveContentContainer(
+            child: Column(
+              children: [
+                _buildHeader(isDark),
+                _buildStats(isDark),
+                const SizedBox(height: 4),
+                _buildRentalManagementBanner(isDark),
+                _buildVisitRequestBanner(isDark),
+                const SizedBox(height: 8),
+                _buildTabBar(isDark),
+                Expanded(
+                  child: _selectedTab == 0
+                      ? _buildListingsTab(isDark)
+                      : _buildReservationsTab(isDark),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddListingSheet(),
+        onPressed: () async {
+          final result = await context.push('/create-listing');
+          if (result != null) _load();
+        },
         backgroundColor: FlexColors.primary500,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text('Ajouter', style: TextStyle(color: Colors.white)),
@@ -111,30 +132,43 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
   }
 
   Widget _buildStats(bool isDark) {
+    final paidTotal = _reservations
+        .where((b) => b.isPaid)
+        .fold<double>(0, (sum, b) => sum + b.montantTotal);
+    final pendingCount = _reservations.where((b) => b.status == BookingStatus.pending).length;
+    final revenueText = paidTotal >= 1000 ? '${(paidTotal / 1000).toStringAsFixed(0)}k' : '${paidTotal.toInt()}';
+
+    final stats = [
+      _StatCardData(icon: Icons.home_rounded, value: '${_mesListings.length}', label: 'Logements', color: FlexColors.primary500),
+      _StatCardData(icon: Icons.bookmark_rounded, value: '${_reservations.length}', label: 'Réservations', color: FlexColors.info),
+      _StatCardData(icon: Icons.hourglass_top_rounded, value: '$pendingCount', label: 'En attente', color: FlexColors.warning),
+      _StatCardData(icon: Icons.trending_up_rounded, value: '$revenueText F', label: 'Revenus', color: FlexColors.success),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
-      child: Row(
-        children: [
-          _StatCard(
-            icon: Icons.home_rounded, value: '${_mesListings.length}',
-            label: 'Logements', color: FlexColors.primary500,
-          ),
-          const SizedBox(width: 8),
-          _StatCard(
-            icon: Icons.bookmark_rounded, value: '${_reservations.length}',
-            label: 'Réservations', color: FlexColors.info,
-          ),
-          const SizedBox(width: 8),
-          _StatCard(
-            icon: Icons.star_rounded, value: '4.7',
-            label: 'Note', color: FlexColors.warning,
-          ),
-          const SizedBox(width: 8),
-          _StatCard(
-            icon: Icons.trending_up_rounded, value: '${_reservations.where((b) => b.isPaid).length * 15000} F',
-            label: 'Revenus', color: FlexColors.success,
-          ),
-        ],
+      child: Builder(
+        builder: (context) {
+          // On desktop, show all stats in a 4-column row with more detail
+          if (context.isDesktop) {
+            return Row(
+              children: stats.asMap().entries.map((e) => [
+                Expanded(child: _StatCard(icon: e.value.icon, value: e.value.value, label: e.value.label, color: e.value.color)),
+                if (e.key < stats.length - 1) const SizedBox(width: 12),
+              ]).expand((w) => w).toList(),
+            );
+          }
+          // Mobile/Tablet: original horizontal scroll
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: stats.asMap().entries.map((e) => [
+                SizedBox(width: 120, child: _StatCard(icon: e.value.icon, value: e.value.value, label: e.value.label, color: e.value.color)),
+                if (e.key < stats.length - 1) const SizedBox(width: 8),
+              ]).expand((w) => w).toList(),
+            ),
+          );
+        },
       ),
     );
   }
@@ -143,7 +177,7 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/hote-rentals'),
+        onTap: () => context.push('/hote-rentals'),
         child: Container(
           clipBehavior: Clip.antiAlias,
           padding: const EdgeInsets.all(FlexSpacing.md),
@@ -188,7 +222,7 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
     return Padding(
       padding: const EdgeInsets.only(left: FlexSpacing.md, right: FlexSpacing.md, top: 4),
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/hote-visits'),
+        onTap: () => context.push('/hote-visits'),
         child: Container(
           padding: const EdgeInsets.all(FlexSpacing.md),
           decoration: BoxDecoration(
@@ -205,7 +239,7 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Demandes de visite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Text('2 en attente · Gérez les visites', style: TextStyle(fontSize: 11, color: FlexColors.neutral500)),
+                  Text('$_pendingVisits en attente · Gérez les visites', style: TextStyle(fontSize: 11, color: FlexColors.neutral500)),
                 ],
               )),
               const Icon(Icons.chevron_right_rounded, size: 18, color: FlexColors.neutral400),
@@ -251,22 +285,21 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
-      itemCount: _mesListings.length,
-      itemBuilder: (context, i) {
-        final listing = _mesListings[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _ListingManageCard(
-            listing: listing,
-            onEdit: () => _showEditListingSheet(listing),
-            onToggle: () {
-              setState(() => listing.isDisponible = !listing.isDisponible);
-            },
-          ),
-        );
-      },
+    return AdaptiveGrid<Listing>(
+      items: _mesListings,
+      mobileCrossAxisCount: 1,
+      tabletCrossAxisCount: 1,
+      desktopCrossAxisCount: 2,
+      largeDesktopCrossAxisCount: 3,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: context.isDesktop ? 3.0 : 4.0,
+      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md, vertical: 4),
+      itemBuilder: (context, listing, i) => _ListingManageCard(
+        listing: listing,
+        onEdit: () => _showEditListingSheet(listing),
+        onToggle: () => _toggleDisponible(listing),
+      ),
     );
   }
 
@@ -343,18 +376,40 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      final ok = await _bookingRepo.confirmBooking(booking.id);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(ok ? 'Réservation confirmée !' : 'Erreur lors de la confirmation.'),
+                            backgroundColor: ok ? FlexColors.success : FlexColors.error,
+                          ),
+                        );
+                        if (ok) _load();
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: FlexColors.success,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    child: const Text('Accepter', style: TextStyle(fontSize: 13)),
+                    child: const Text('Accepter', style: TextStyle(fontSize: 13, color: Colors.white)),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      final ok = await _bookingRepo.cancelBooking(booking.id);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(ok ? 'Réservation refusée.' : 'Erreur lors du refus.'),
+                            backgroundColor: ok ? FlexColors.neutral600 : FlexColors.error,
+                          ),
+                        );
+                        if (ok) _load();
+                      }
+                    },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: FlexColors.error,
                       side: const BorderSide(color: FlexColors.error),
@@ -371,25 +426,26 @@ class _HoteDashboardScreenState extends State<HoteDashboardScreen> {
     );
   }
 
-  void _showAddListingSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(FlexRadius.xl)),
-      ),
-      builder: (_) => const _ListingFormSheet(isEditing: false),
-    );
+  Future<void> _toggleDisponible(Listing listing) async {
+    try {
+      await _listingRepo.updateListing(listing.id, {
+        'isDisponible': !listing.isDisponible,
+      });
+      if (!mounted) return;
+      _load();
+    } catch (e) {
+      debugPrint('Toggle disponibilité error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible de modifier la disponibilité')),
+      );
+    }
   }
 
   void _showEditListingSheet(Listing listing) {
-    showModalBottomSheet(
+    AdaptiveOverlay.show(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(FlexRadius.xl)),
-      ),
-      builder: (_) => _ListingFormSheet(isEditing: true, listing: listing),
+      child: _ListingFormSheet(isEditing: true, listing: listing, onSaved: _load),
     );
   }
 }
@@ -400,26 +456,29 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(FlexRadius.md),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(
-              fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700, color: color,
-            )),
-            Text(label, style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(FlexRadius.md),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(
+            fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700, color: color,
+          )),
+          Text(label, style: FlexTextStyles.caption.copyWith(color: FlexColors.neutral500)),
+        ],
       ),
     );
   }
+}
+
+class _StatCardData {
+  final IconData icon; final String value; final String label; final Color color;
+  const _StatCardData({required this.icon, required this.value, required this.label, required this.color});
 }
 
 class _TabBtn extends StatelessWidget {
@@ -468,8 +527,16 @@ class _ListingManageCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? FlexColors.neutral700 : FlexColors.neutral100,
               borderRadius: BorderRadius.circular(FlexRadius.md),
+              image: listing.photos.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(listing.photos.first),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: Icon(Icons.home_rounded, color: isDark ? FlexColors.neutral500 : FlexColors.neutral300),
+            child: listing.photos.isEmpty
+                ? Icon(Icons.home_rounded, color: isDark ? FlexColors.neutral500 : FlexColors.neutral300)
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -503,8 +570,8 @@ class _ListingManageCard extends StatelessWidget {
 }
 
 class _ListingFormSheet extends StatefulWidget {
-  final bool isEditing; final Listing? listing;
-  const _ListingFormSheet({required this.isEditing, this.listing});
+  final bool isEditing; final Listing? listing; final VoidCallback onSaved;
+  const _ListingFormSheet({required this.isEditing, this.listing, required this.onSaved});
 
   @override
   State<_ListingFormSheet> createState() => _ListingFormSheetState();
@@ -512,13 +579,15 @@ class _ListingFormSheet extends StatefulWidget {
 
 class _ListingFormSheetState extends State<_ListingFormSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _listingRepo = ListingRepository();
+  bool _isSaving = false;
   late TextEditingController _titreController;
   late TextEditingController _descriptionController;
   late TextEditingController _prixController;
   late TextEditingController _villeController;
   late TextEditingController _quartierController;
   late TextEditingController _adresseController;
-  TypeLogement _selectedType = TypeLogement.chambre;
+  late TypeLogement _selectedType;
 
   @override
   void initState() {
@@ -529,6 +598,7 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
     _villeController = TextEditingController(text: widget.listing?.ville ?? '');
     _quartierController = TextEditingController(text: widget.listing?.quartier ?? '');
     _adresseController = TextEditingController(text: widget.listing?.adresse ?? '');
+    _selectedType = widget.listing?.typeLogement ?? TypeLogement.chambre;
   }
 
   String _typeLabel(TypeLogement t) {
@@ -637,15 +707,38 @@ class _ListingFormSheetState extends State<_ListingFormSheet> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(widget.isEditing ? 'Logement modifié' : 'Logement créé'),
-                      ));
-                    }
-                  },
-                  child: Text(widget.isEditing ? 'Enregistrer' : 'Créer le logement'),
+                  onPressed: _isSaving
+                      ? null
+                      : () async {
+                          if (!_formKey.currentState!.validate()) return;
+                          setState(() => _isSaving = true);
+                          try {
+                            await _listingRepo.updateListing(widget.listing!.id, {
+                              'titre': _titreController.text.trim(),
+                              'description': _descriptionController.text.trim(),
+                              'typeLogement': _selectedType.name,
+                              'prixParNuit': double.tryParse(_prixController.text.trim()) ?? 0,
+                              'ville': _villeController.text.trim(),
+                              'quartier': _quartierController.text.trim(),
+                              'adresse': _adresseController.text.trim(),
+                            });
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            widget.onSaved();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Logement modifié')),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            setState(() => _isSaving = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Erreur: impossible de modifier le logement')),
+                            );
+                          }
+                        },
+                  child: _isSaving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Enregistrer'),
                 ),
               ),
             ],

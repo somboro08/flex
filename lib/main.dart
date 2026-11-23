@@ -1,95 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'theme/flex_theme.dart';
 import 'theme/theme_provider.dart';
-import 'screens/onboarding/onboarding_screen.dart';
-import 'screens/auth_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/home/map_screen.dart';
-import 'screens/home/notification_screen.dart';
-import 'screens/payment/payment_screen.dart';
-import 'screens/hote/hote_dashboard_screen.dart';
-import 'screens/booking/my_bookings_screen.dart';
-import 'screens/profile/profile_screen.dart';
-import 'screens/profile/favorites_screen.dart';
-import 'screens/profile/settings_screen.dart';
-import 'screens/profile/identity_verification_screen.dart';
-import 'screens/profile/support_screen.dart';
-import 'screens/hote/hote_rentals_screen.dart';
-import 'screens/hote/hote_visit_requests_screen.dart';
-import 'screens/locataire/locataire_rentals_screen.dart';
-import 'screens/locataire/advance_payment_screen.dart';
-import 'screens/locataire/refund_request_screen.dart';
-import 'screens/locataire/renew_booking_screen.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'services/auth_service.dart';
+import 'core/router/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   await initializeDateFormatting('fr', null);
+
+  final authService = AuthService();
+  await authService.init();
+
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
-      child: const FlexApp(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => authService),
+      ],
+      child: FlexApp(authService: authService),
     ),
   );
 }
 
-class FlexApp extends StatelessWidget {
-  const FlexApp({super.key});
+class FlexApp extends StatefulWidget {
+  final AuthService authService;
+  const FlexApp({super.key, required this.authService});
+
+  @override
+  State<FlexApp> createState() => _FlexAppState();
+}
+
+class _FlexAppState extends State<FlexApp> {
+  late final GoRouter _router = createAppRouter(AuthService());
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
 
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Flex',
       debugShowCheckedModeBanner: false,
       theme: flexLightTheme(),
       darkTheme: flexDarkTheme(),
       themeMode: themeProvider.themeMode,
-      home: const _Splash(),
-      routes: {
-        '/onboarding': (_) => OnboardingScreen(),
-        '/auth': (_) => AuthScreen(),
-        '/home': (_) => HomeScreen(),
-        '/payment': (_) => PaymentScreen(),
-        '/map': (_) => const MapScreen(),
-        '/notifications': (_) => const NotificationScreen(),
-        '/hote-dashboard': (_) => const HoteDashboardScreen(),
-        '/bookings': (_) => const MyBookingsScreen(),
-        '/profile': (_) => const ProfileScreen(),
-        '/favorites': (_) => const FavoritesScreen(),
-        '/settings': (_) => const SettingsScreen(),
-        '/identity-verification': (_) => const IdentityVerificationScreen(),
-        '/support': (_) => const SupportScreen(),
-        '/hote-rentals': (_) => const HoteRentalsScreen(),
-        '/hote-visits': (_) => const HoteVisitRequestsScreen(),
-        '/locataire-rentals': (_) => const LocataireRentalsScreen(),
-        '/advance-payment': (_) => const AdvancePaymentScreen(),
-        '/refund-request': (_) => const RefundRequestScreen(),
-        '/renew-booking': (_) => const RenewBookingScreen(),
-      },
+      routerConfig: _router,
     );
   }
 }
 
 // ─────────────────────────────────────────────
-//  SPLASH — decides where to route
+//  SPLASH — shown on mobile before navigation.
+//  On desktop/web, we route immediately without
+//  a blocking full-screen animation.
 // ─────────────────────────────────────────────
 
-class _Splash extends StatefulWidget {
-  const _Splash();
+class FlexSplashScreen extends StatefulWidget {
+  const FlexSplashScreen({super.key});
 
   @override
-  State<_Splash> createState() => _SplashState();
+  State<FlexSplashScreen> createState() => _FlexSplashScreenState();
 }
 
-class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
+class _FlexSplashScreenState extends State<FlexSplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
@@ -106,41 +83,28 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
       CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
     _controller.forward();
-    _navigate();
-  }
-
-  Future<void> _navigate() async {
-    try {
-      await Future.delayed(const Duration(seconds: 2));
-      final prefs = await SharedPreferences.getInstance();
-      final onboardingDone = prefs.getBool('onboarding_done') ?? false;
-      
-      bool isLoggedIn = false;
-      try {
-        isLoggedIn = FirebaseAuth.instance.currentUser != null;
-      } catch (e) {
-        debugPrint('Auth error: $e');
-      }
-
-      if (!mounted) return;
-
-      if (!onboardingDone) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else if (!isLoggedIn) {
-        Navigator.of(context).pushReplacementNamed('/auth');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    } catch (e) {
-      debugPrint('Error during navigation: $e');
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Desktop / Web: no splash animation — just a blank screen while routing
+    if (kIsWeb) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: FlexColors.primary500,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Mobile: full branded splash
     return Scaffold(
       backgroundColor: FlexColors.primary500,
       body: Center(
@@ -151,7 +115,6 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo
                 Container(
                   width: 88,
                   height: 88,
@@ -166,15 +129,11 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
                       ),
                     ],
                   ),
-                  child: Center(
-                    child: SvgPicture.asset(
-                      'assets/icons/flex.svg',
-                      width: 48,
-                      height: 48,
-                      colorFilter: const ColorFilter.mode(
-                        FlexColors.primary500,
-                        BlendMode.srcIn,
-                      ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.home_rounded,
+                      size: 48,
+                      color: FlexColors.primary500,
                     ),
                   ),
                 ),

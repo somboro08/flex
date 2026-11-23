@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/rental_models.dart';
+import '../../repositories/rental_repository.dart';
+import '../../shared/widgets/adaptive_overlay.dart';
+import '../../shared/widgets/adaptive_dialog_content.dart';
 import '../../utils/rental_utils.dart';
 
 class AdvancePaymentScreen extends StatefulWidget {
@@ -14,6 +17,78 @@ class AdvancePaymentScreen extends StatefulWidget {
 class _AdvancePaymentScreenState extends State<AdvancePaymentScreen> {
   int _months = 1;
   String _selectedMethod = 'mtn';
+  bool _isProcessing = false;
+  final _rentalRepo = RentalRepository();
+
+  String _periodLabelFor(int offsetMonths) {
+    final now = DateTime.now();
+    final due = DateTime(now.year, now.month + offsetMonths, widget.rental?.billingDay ?? 5);
+    return '${due.year}-${due.month.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pay() async {
+    final rental = widget.rental;
+    if (rental == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Sélectionnez d'abord une location depuis la liste")),
+      );
+      return;
+    }
+    setState(() => _isProcessing = true);
+    try {
+      for (var i = 0; i < _months; i++) {
+        await _rentalRepo.payRental(
+          rental.id,
+          periodLabel: _periodLabelFor(i),
+          transactionRef: '$_selectedMethod-${DateTime.now().millisecondsSinceEpoch}',
+        );
+      }
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      _showSuccess();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Paiement impossible, réessayez : ${e.toString()}')),
+      );
+    }
+  }
+
+  void _showSuccess() {
+    AdaptiveOverlay.show(
+      context: context,
+      barrierDismissible: false,
+      child: AdaptiveDialogContent(
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Retour'),
+          ),
+        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, size: 36, color: Color(0xFF3B82F6)),
+            ),
+            const SizedBox(height: 16),
+            const Text('Paiement effectué !', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text('Votre paiement anticipé a été enregistré.', style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,14 +215,16 @@ class _AdvancePaymentScreenState extends State<AdvancePaymentScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => _showConfirmation(),
+                      onPressed: _isProcessing ? null : _showConfirmation,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF3B82F6),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Effectuer le paiement', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: _isProcessing
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3B82F6)))
+                          : const Text('Effectuer le paiement', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
@@ -202,16 +279,15 @@ class _AdvancePaymentScreenState extends State<AdvancePaymentScreen> {
   }
 
   void _showConfirmation() {
-    showDialog(
+    AdaptiveOverlay.show(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirmation'),
-        content: Text('Voulez-vous payer ${RentalUtils.formatFCFA(widget.rental?.monthlyRent ?? (150000 * _months).toDouble())} en avance pour $_months mois ?'),
+      child: AdaptiveDialogContent(
+        title: 'Confirmation',
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-          ElevatedButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('Confirmer')),
+          ElevatedButton(onPressed: () { Navigator.pop(context); _pay(); }, child: const Text('Confirmer')),
         ],
+        child: Text('Voulez-vous payer en avance $_months mois pour ${RentalUtils.formatFCFA((widget.rental?.monthlyRent ?? 150000) * _months)} ?'),
       ),
     );
   }

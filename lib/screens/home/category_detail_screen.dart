@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
 import '../../utils/rental_utils.dart';
-import '../listing/listing_detail_screen.dart';
+import '../../repositories/listing_repository.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -18,6 +19,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   String _selectedVille = 'Toutes';
   String _selectedQuartier = 'Tous';
   bool _showMap = false;
+  bool _isLoading = true;
+
+  final _listingRepo = ListingRepository();
+  List<Listing> _listings = [];
 
   final _villes = ['Toutes', 'Parakou', 'Cotonou', 'Abomey', 'Natitingou', 'Porto-Novo'];
   final _quartiers = {
@@ -38,7 +43,6 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   TypeLogement? _categoryType() {
     switch (widget.category) {
-      case 'Location': return null;
       case 'Cohabitation': return TypeLogement.cohabitation;
       case 'Villa': return TypeLogement.villa;
       case 'Espace': return TypeLogement.espace;
@@ -47,30 +51,44 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     }
   }
 
+  bool _isShortStay() => widget.category == 'Court séjour';
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final type = _categoryType()?.name;
+      final listings = await _listingRepo.getListings(type: type);
+      if (!mounted) return;
+      setState(() {
+        _listings = listings;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading category listings: $e');
+      if (!mounted) return;
+      setState(() {
+        _listings = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
   List<Listing> _getFilteredListings() {
     final catType = _categoryType();
-    return _sampleListings.where((l) {
+    return _listings.where((l) {
       if (catType != null && l.typeLogement != catType) return false;
-      if (widget.category == 'Court séjour' && l.prixParNuit > 10000) return false;
+      if (_isShortStay() && l.prixParNuit > 10000) return false;
       if (_selectedVille != 'Toutes' && l.ville != _selectedVille) return false;
       if (_selectedQuartier != 'Tous' && l.quartier != _selectedQuartier) return false;
       return true;
     }).toList();
   }
-
-  final List<Listing> _sampleListings = [
-    Listing(id: '1', hoteId: 'h1', titre: 'Chambre calme Madame Akobi', description: 'Chambre propre', typeLogement: TypeLogement.chambre, ville: 'Parakou', quartier: 'Zongo', adresse: 'Rue des Artisans', latitude: 9.337, longitude: 2.628, prixParNuit: 5000, photos: [], equipements: ['WiFi', 'Ventilateur'], certification: CertificationStatus.certified, note: 4.8, nombreAvis: 23, createdAt: DateTime.now()),
-    Listing(id: '2', hoteId: 'h2', titre: 'Studio meublé Centre-ville', description: 'Studio indépendant', typeLogement: TypeLogement.studio, ville: 'Parakou', quartier: 'Kpébié', adresse: 'Avenue Liberté', latitude: 9.341, longitude: 2.624, prixParNuit: 8500, photos: [], equipements: ['Climatisation', 'Cuisine'], certification: CertificationStatus.certified, note: 4.6, nombreAvis: 11, createdAt: DateTime.now()),
-    Listing(id: '3', hoteId: 'h3', titre: 'Chambre familiale jardin', description: 'Grande chambre', typeLogement: TypeLogement.chambre, ville: 'Parakou', quartier: 'Alaga', adresse: 'Quartier Alaga', latitude: 9.330, longitude: 2.631, prixParNuit: 6500, photos: [], equipements: ['Ventilateur', 'Jardin'], certification: CertificationStatus.pending, note: 4.4, nombreAvis: 7, createdAt: DateTime.now()),
-    Listing(id: '4', hoteId: 'h4', titre: 'Villa Ouidah plage', description: 'Villa avec piscine', typeLogement: TypeLogement.villa, ville: 'Cotonou', quartier: 'Fidjrossè', adresse: 'Bord de mer', latitude: 6.360, longitude: 2.086, prixParNuit: 35000, photos: [], equipements: ['Piscine', 'Climatisation', 'WiFi'], certification: CertificationStatus.certified, note: 4.9, nombreAvis: 34, createdAt: DateTime.now()),
-    Listing(id: '5', hoteId: 'h5', titre: 'Appartement moderne', description: 'Appartement tout équipé', typeLogement: TypeLogement.appartement, ville: 'Cotonou', quartier: 'Cadjehoun', adresse: 'Boulevard de France', latitude: 6.357, longitude: 2.400, prixParNuit: 12000, photos: [], equipements: ['Climatisation', 'WiFi', 'Parking'], certification: CertificationStatus.certified, note: 4.5, nombreAvis: 18, createdAt: DateTime.now()),
-    Listing(id: '6', hoteId: 'h6', titre: 'Chambre économique', description: 'Chambre simple', typeLogement: TypeLogement.chambre, ville: 'Parakou', quartier: 'Ganou', adresse: 'Route de Malanville', latitude: 9.340, longitude: 2.630, prixParNuit: 3000, photos: [], equipements: ['Ventilateur'], certification: CertificationStatus.certified, note: 4.2, nombreAvis: 45, createdAt: DateTime.now()),
-    Listing(id: '7', hoteId: 'h7', titre: 'Villa haut standing', description: 'Villa luxueuse', typeLogement: TypeLogement.villa, ville: 'Abomey', quartier: 'Centre', adresse: 'Place de la Nation', latitude: 7.183, longitude: 1.991, prixParNuit: 45000, photos: [], equipements: ['Piscine', 'Climatisation', 'Jardin', 'Parking'], certification: CertificationStatus.certified, note: 4.7, nombreAvis: 9, createdAt: DateTime.now()),
-    Listing(id: '8', hoteId: 'h8', titre: 'Studio Akpakpa', description: 'Petit studio meublé', typeLogement: TypeLogement.studio, ville: 'Cotonou', quartier: 'Akpakpa', adresse: 'Rue des Pêcheurs', latitude: 6.370, longitude: 2.440, prixParNuit: 7000, photos: [], equipements: ['WiFi', 'Eau chaude'], certification: CertificationStatus.certified, note: 4.3, nombreAvis: 15, createdAt: DateTime.now()),
-    Listing(id: '9', hoteId: 'h9', titre: 'Espace CoWorking', description: 'Espace de travail partagé', typeLogement: TypeLogement.espace, ville: 'Cotonou', quartier: 'Cadjehoun', adresse: 'Rue des Affaires', latitude: 6.355, longitude: 2.398, prixParNuit: 15000, photos: [], equipements: ['WiFi', 'Climatisation'], certification: CertificationStatus.certified, note: 4.4, nombreAvis: 8, createdAt: DateTime.now()),
-    Listing(id: '10', hoteId: 'h10', titre: 'Club Privé Lounge', description: 'Espace événementiel', typeLogement: TypeLogement.club, ville: 'Cotonou', quartier: 'Haie Vive', adresse: 'Boulevard de la Marina', latitude: 6.350, longitude: 2.395, prixParNuit: 50000, photos: [], equipements: ['Sonorisation', 'Climatisation', 'Parking'], certification: CertificationStatus.pending, note: 4.0, nombreAvis: 3, createdAt: DateTime.now()),
-    Listing(id: '11', hoteId: 'h11', titre: 'Colocation étudiante', description: 'Chambre en colocation', typeLogement: TypeLogement.cohabitation, ville: 'Parakou', quartier: 'Baka', adresse: 'Rue de l\'Université', latitude: 9.345, longitude: 2.635, prixParNuit: 3500, photos: [], equipements: ['WiFi', 'Ventilateur'], certification: CertificationStatus.certified, note: 4.3, nombreAvis: 27, createdAt: DateTime.now()),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -88,14 +106,30 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
+        onRefresh: _load,
         color: FlexColors.primary500,
         child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildCarousel(isDark)),
           SliverToBoxAdapter(child: _buildFilterBar(isDark, cardColor)),
-          if (_showMap)
+          if (_isLoading)
+            const SliverToBoxAdapter(child: Padding(
+              padding: EdgeInsets.all(48),
+              child: Center(child: CircularProgressIndicator(color: FlexColors.primary500)),
+            ))
+          else if (_showMap)
             SliverToBoxAdapter(child: _buildMap(isDark))
+          else if (filtered.isEmpty)
+            SliverToBoxAdapter(child: Padding(
+              padding: const EdgeInsets.all(48),
+              child: Column(
+                children: [
+                  Icon(Icons.search_off_rounded, size: 56, color: FlexColors.neutral300),
+                  const SizedBox(height: 12),
+                  Text('Aucun logement trouvé', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: FlexColors.neutral500)),
+                ],
+              ),
+            ))
           else
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.md),
@@ -276,7 +310,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 point: LatLng(l.latitude, l.longitude),
                 width: 40, height: 40,
                 child: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListingDetailScreen(listing: l))),
+                  onTap: () => context.push('/listing/${l.id}', extra: l),
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(color: FlexColors.primary500, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4)]),
@@ -297,7 +331,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     return Padding(
       padding: EdgeInsets.only(top: shift),
       child: GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListingDetailScreen(listing: listing))),
+        onTap: () => context.push('/listing/${listing.id}', extra: listing),
         child: Container(
           width: w, height: h,
           padding: const EdgeInsets.all(10),

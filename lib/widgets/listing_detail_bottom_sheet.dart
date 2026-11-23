@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../theme/flex_theme.dart';
 import '../models/models.dart';
 import 'flex_badge.dart';
-import '../screens/booking/booking_confirmation_screen.dart';
 
 class ListingDetailBottomSheet extends StatefulWidget {
   final Listing listing;
@@ -456,11 +456,9 @@ class _ListingDetailBottomSheetState extends State<ListingDetailBottomSheet> {
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => BookingConfirmationScreen(listing: widget.listing),
-                    ),
+                  context.push(
+                    '/book/${widget.listing.id}',
+                    extra: widget.listing,
                   );
                 },
                 style: ElevatedButton.styleFrom(

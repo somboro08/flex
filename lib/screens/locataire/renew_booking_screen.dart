@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/rental_models.dart';
+import '../../repositories/rental_repository.dart';
 import '../../utils/rental_utils.dart';
 
 class RenewBookingScreen extends StatefulWidget {
@@ -15,6 +16,37 @@ class _RenewBookingScreenState extends State<RenewBookingScreen> {
   int _additionalMonths = 6;
   bool _agreeTerms = false;
   bool _submitted = false;
+  bool _isSubmitting = false;
+  final _rentalRepo = RentalRepository();
+
+  Future<void> _submit() async {
+    final rental = widget.rental;
+    if (rental == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Sélectionnez d'abord une location depuis la liste")),
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await _rentalRepo.createRequest(
+        rental.id,
+        type: 'renewal',
+        message: 'Prolongation du bail de $_additionalMonths mois',
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _submitted = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Envoi impossible, réessayez : ${e.toString()}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -211,7 +243,7 @@ class _RenewBookingScreenState extends State<RenewBookingScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _agreeTerms ? () => setState(() => _submitted = true) : null,
+                      onPressed: _agreeTerms && !_isSubmitting ? _submit : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),
                         foregroundColor: Colors.white,
@@ -219,7 +251,9 @@ class _RenewBookingScreenState extends State<RenewBookingScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         disabledBackgroundColor: FlexColors.neutral300,
                       ),
-                      child: const Text('Soumettre la demande', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: _isSubmitting
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Soumettre la demande', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],

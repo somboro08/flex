@@ -1,81 +1,215 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'api_client.dart';
+import '../models/models.dart';
 
-class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  // Identifiant Google — via dart-define (ex: --dart-define=GOOGLE_CLIENT_ID=votre_id)
-  static const String _googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+class AuthService extends ChangeNotifier {
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: _googleClientId.isNotEmpty ? _googleClientId : null,
-  );
+  final _api = ApiClient();
 
-  // --- CONFIGURATION DEV ---
-  // Passez --dart-define=MOCK_MODE=false pour la production
-  static const bool isMockMode = bool.fromEnvironment('MOCK_MODE', defaultValue: true);
-  // --------------------------
+  bool get isLoggedIn => _accessToken != null;
 
-  Stream<User?> get user => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
+  String? _accessToken;
+  FlexUser? _currentUser;
 
-  Future<dynamic> signInWithGoogle() async {
-    if (isMockMode) {
-      debugPrint('--- MODE SIMULATION ACTIVÉ ---');
-      await Future.delayed(const Duration(seconds: 1)); // Simule un temps de chargement
-      debugPrint('Simulation : Connexion Google réussie (Mock)');
-      return "mock_user_credential"; // On retourne une chaîne non-nulle pour valider le succès
+  FlexUser? get currentUser => _currentUser;
+
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _accessToken = prefs.getString('access_token');
+    if (_accessToken != null) {
+      try {
+        await fetchProfile();
+      } catch (e) {
+        debugPrint('Failed to fetch profile at startup: $e');
+        _accessToken = null;
+        await prefs.remove('access_token');
+      }
     }
+  }
 
+  /// Connexion avec numéro de téléphone + mot de passe (backend Go).
+  Future<bool> login(String telephone, String password) async {
     try {
-      debugPrint('--- DEBUT GOOGLE SIGN-IN REEL ---');
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      final response = await _api.dio.post('/auth/login', data: {
+        'telephone': telephone,
+        'password': password,
+      });
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      return await _auth.signInWithCredential(credential);
+      if (response.statusCode == 200) {
+        await _storeSession(response.data['data']);
+        return true;
+      }
     } catch (e) {
-      debugPrint('Erreur réelle Google : $e');
+      debugPrint('Login error: $e');
+      rethrow;
+    }
+    return false;
+  }
+
+  /// Inscription (backend Go). L'utilisateur est connecté automatiquement.
+  Future<bool> register({
+    required String nom,
+    required String prenom,
+    required String telephone,
+    required String password,
+    String? email,
+    String? role,
+  }) async {
+    try {
+      final response = await _api.dio.post('/auth/register', data: {
+        'nom': nom,
+        'prenom': prenom,
+        'telephone': telephone,
+        'password': password,
+        if (email != null && email.isNotEmpty) 'email': email,
+        'role': role ?? 'voyageur',
+      });
+
+      if (response.statusCode == 201) {
+        await _storeSession(response.data['data']);
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Registration error: $e');
+      rethrow;
+    }
+    return false;
+  }
+
+  Future<void> _storeSession(Map<String, dynamic> data) async {
+    final tokens = data['tokens'] ?? data;
+    final accessToken = tokens['accessToken'];
+    final refreshToken = tokens['refreshToken'];
+    final userMap = data['user'];
+
+    if (accessToken == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('access_token', accessToken);
+    if (refreshToken != null) {
+      await prefs.setString('refresh_token', refreshToken);
+    }
+    _accessToken = accessToken;
+
+    if (userMap != null) {
+      _currentUser = FlexUser.fromMap(userMap);
+      await prefs.setString('user_id', _currentUser!.id);
+    }
+    notifyListeners();
+  }
+
+  Future<void> fetchProfile() async {
+    try {
+      final response = await _api.dio.get('/me');
+      if (response.statusCode == 200) {
+        final userMap = response.data['data'];
+        _currentUser = FlexUser.fromMap(userMap);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Fetch profile error: $e');
+      rethrow;
+    }
+  }
+
+  /// L'utilisateur devient propriétaire (hote) — profil adapté au type.
+  Future<void> becomeHote() async {
+    try {
+      final response = await _api.dio.put('/me/role', data: {'role': 'hote'});
+      if (response.statusCode == 200) {
+        final userMap = response.data['data'];
+        _currentUser = FlexUser.fromMap(userMap);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Become hote error: $e');
+      rethrow;
+    }
+  }
+
+  /// Changement de mot de passe (authentifié).
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _api.dio.put('/auth/password', data: {
+        'oldPassword': oldPassword,
+        'newPassword': newPassword,
+      });
+    } catch (e) {
+      debugPrint('Change password error: $e');
       rethrow;
     }
   }
 
   Future<void> signOut() async {
-    if (isMockMode) {
-      debugPrint('Simulation : Déconnexion (Mock)');
-      return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final refreshToken = prefs.getString('refresh_token');
+      await _api.dio.post('/auth/logout', data: {
+        'refreshToken': refreshToken,
+      });
+    } catch (e) {
+      debugPrint('Logout error on backend: $e');
+    } finally {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('access_token');
+      await prefs.remove('refresh_token');
+      await prefs.remove('user_id');
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
     }
-    await _googleSignIn.signOut();
-    await _auth.signOut();
   }
 
-  // Simulation pour le téléphone aussi si besoin
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required Function(PhoneAuthCredential) verificationCompleted,
-    required Function(FirebaseAuthException) verificationFailed,
-    required Function(String, int?) codeSent,
-    required Function(String) codeAutoRetrievalTimeout,
+  /// Alias for signOut — called by ProfileScreen
+  Future<void> logout() => signOut();
+
+  Future<void> updateProfile({
+    String? nom,
+    String? prenom,
+    String? telephone,
+    String? email,
+    String? photoUrl,
   }) async {
-    if (isMockMode) {
-      await Future.delayed(const Duration(seconds: 1));
-      codeSent("mock_verification_id", 123456);
-      return;
+    try {
+      final body = <String, dynamic>{};
+      if (nom != null && nom.isNotEmpty) body['nom'] = nom;
+      if (prenom != null && prenom.isNotEmpty) body['prenom'] = prenom;
+      if (telephone != null && telephone.isNotEmpty) body['telephone'] = telephone;
+      if (email != null) body['email'] = email;
+      if (photoUrl != null) body['photoUrl'] = photoUrl;
+
+      final response = await _api.dio.put('/me', data: body);
+      if (response.statusCode == 200) {
+        final userMap = response.data['data'];
+        _currentUser = FlexUser.fromMap(userMap);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Update profile error: $e');
+      rethrow;
     }
-    // ... reste de l'implémentation réelle
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: verificationCompleted,
-      verificationFailed: verificationFailed,
-      codeSent: codeSent,
-      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
-      timeout: const Duration(seconds: 60),
-    );
+  }
+
+  Future<void> submitIdentity({
+    required String idCardUrl,
+    String? birthCertificateUrl,
+  }) async {
+    try {
+      await _api.dio.put('/me/identity', data: {
+        'idCardUrl': idCardUrl,
+        if (birthCertificateUrl != null) 'birthCertificateUrl': birthCertificateUrl,
+      });
+      await fetchProfile();
+    } catch (e) {
+      debugPrint('Submit identity error: $e');
+      rethrow;
+    }
   }
 }

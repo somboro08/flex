@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../services/auth_service.dart';
+import '../../services/api_client.dart';
+import '../../repositories/payment_repository.dart';
+import '../../shared/widgets/adaptive_overlay.dart';
+import '../../shared/widgets/adaptive_dialog_content.dart';
 
 class PaymentScreen extends StatefulWidget {
-  final Booking? booking;
-  const PaymentScreen({super.key, this.booking});
+  final Booking booking;
+  const PaymentScreen({super.key, required this.booking});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -13,6 +20,7 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   PaymentMethod? _selected;
   bool _isProcessing = false;
+  final _paymentRepo = PaymentRepository();
 
   final List<_PaymentOption> _options = [
     _PaymentOption(
@@ -49,58 +57,74 @@ class _PaymentScreenState extends State<PaymentScreen> {
     ),
   ];
 
+  String _backendMethod(PaymentMethod m) {
+    switch (m) {
+      case PaymentMethod.mtnMomo: return 'mtn_momo';
+      case PaymentMethod.moovMoney: return 'moov_money';
+      case PaymentMethod.wave: return 'wave';
+      case PaymentMethod.creditCard: return 'credit_card';
+      case PaymentMethod.cash: return 'cash';
+      case PaymentMethod.cinetpay: return 'cinetpay';
+    }
+  }
+
   Future<void> _pay() async {
     if (_selected == null) return;
     setState(() => _isProcessing = true);
-    // TODO: CinetPay / FedaPay integration
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isProcessing = false);
-    if (mounted) {
+    try {
+      final phone = AuthService().currentUser?.telephone;
+      await _paymentRepo.pay(
+        bookingId: widget.booking.id,
+        method: _backendMethod(_selected!),
+        phoneNumber: phone,
+      );
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
       _showSuccess();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiClient.errorMessage(e, fallback: 'Paiement impossible, réessayez'))),
+      );
     }
   }
 
   void _showSuccess() {
-    showDialog(
+    AdaptiveOverlay.show(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FlexRadius.xl)),
-        child: Padding(
-          padding: const EdgeInsets.all(FlexSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: FlexColors.certified.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_circle_rounded, color: FlexColors.certified, size: 48),
-              ),
-              const SizedBox(height: FlexSpacing.md),
-              Text('Réservation confirmée !', style: FlexTextStyles.h2),
-              const SizedBox(height: 8),
-              Text(
-                'Votre réservation a été confirmée. L\'hôte vous contactera prochainement.',
-                style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: FlexSpacing.lg),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
-                  },
-                  child: const Text('Voir mes réservations'),
-                ),
-              ),
-            ],
+      child: AdaptiveDialogContent(
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.go('/home');
+            },
+            child: const Text('Voir mes réservations'),
           ),
+        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: FlexColors.certified.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: FlexColors.certified, size: 48),
+            ),
+            const SizedBox(height: FlexSpacing.md),
+            Text('Réservation confirmée !', style: FlexTextStyles.h2),
+            const SizedBox(height: 8),
+            Text(
+              'Votre réservation a été confirmée. L\'hôte vous contactera prochainement.',
+              style: FlexTextStyles.body.copyWith(color: FlexColors.neutral500),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
@@ -109,6 +133,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final b = widget.booking;
+    final dateFormat = DateFormat('dd MMM yyyy', 'fr');
 
     return Scaffold(
       appBar: AppBar(
@@ -133,13 +159,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               child: Column(
                 children: [
-                  _SummaryRow(label: 'Logement', value: 'Chambre chez Madame Akobi'),
+                  _SummaryRow(label: 'Réf. réservation', value: b.id.isEmpty ? '—' : b.id.substring(0, 8).toUpperCase()),
                   const SizedBox(height: 8),
-                  _SummaryRow(label: 'Dates', value: '15 avr → 17 avr (2 nuits)'),
+                  _SummaryRow(
+                    label: 'Dates',
+                    value: '${dateFormat.format(b.dateArrivee)} → ${dateFormat.format(b.dateDepart)} (${b.nombreNuits} nuits)',
+                  ),
                   const Divider(height: 24),
                   _SummaryRow(
                     label: 'Total',
-                    value: '10 000 FCFA',
+                    value: '${b.montantTotal.toInt()} FCFA',
                     isTotal: true,
                   ),
                 ],

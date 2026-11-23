@@ -6,8 +6,12 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../services/auth_service.dart';
+import '../../services/api_client.dart';
+import '../../repositories/booking_repository.dart';
 import '../payment/payment_screen.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
@@ -22,6 +26,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   DateTime? _dateArrivee;
   DateTime? _dateDepart;
   int _nombreVoyageurs = 1;
+  bool _isCreating = false;
+  final _bookingRepo = BookingRepository();
 
   int get _nombreNuits {
     if (_dateArrivee == null || _dateDepart == null) return 0;
@@ -99,18 +105,40 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     await Share.shareXFiles([XFile(file.path)], text: 'Reçu Flex');
   }
 
-  void _goToPayment() {
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => PaymentScreen(
-        booking: Booking(
-          id: '', voyageurId: '', listingId: widget.listing.id,
-          hoteId: widget.listing.hoteId,
-          dateArrivee: _dateArrivee!, dateDepart: _dateDepart!,
-          nombreNuits: _nombreNuits, montantTotal: _total,
-          createdAt: DateTime.now(),
-        ),
-      ),
-    ));
+  Future<void> _goToPayment() async {
+    if (!AuthService().isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connectez-vous pour réserver un logement')),
+      );
+      context.push('/auth');
+      return;
+    }
+    setState(() => _isCreating = true);
+    try {
+      final apiDateFormat = DateFormat('yyyy-MM-dd');
+      final booking = await _bookingRepo.createBooking(
+        listingId: widget.listing.id,
+        dateArrivee: apiDateFormat.format(_dateArrivee!),
+        dateDepart: apiDateFormat.format(_dateDepart!),
+      );
+      if (!mounted) return;
+      setState(() => _isCreating = false);
+      if (booking == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de créer la réservation')),
+        );
+        return;
+      }
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PaymentScreen(booking: booking),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isCreating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiClient.errorMessage(e, fallback: 'Impossible de créer la réservation'))),
+      );
+    }
   }
 
   @override
@@ -192,9 +220,11 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _nombreNuits > 0 ? _goToPayment : null,
-                icon: const Icon(Icons.payment_rounded),
-                label: Text(_nombreNuits > 0 ? 'Payer ${_total.toInt()} FCFA' : 'Choisir les dates'),
+                onPressed: (_nombreNuits > 0 && !_isCreating) ? _goToPayment : null,
+                icon: _isCreating
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.payment_rounded),
+                label: Text(_isCreating ? 'Création de la réservation…' : (_nombreNuits > 0 ? 'Payer ${_total.toInt()} FCFA' : 'Choisir les dates')),
                 style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
               ),
             ),

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
 import '../../utils/rental_utils.dart';
-import '../listing/listing_detail_screen.dart';
+import '../../repositories/listing_repository.dart';
 
 class BudgetSearchScreen extends StatefulWidget {
   const BudgetSearchScreen({super.key});
@@ -16,20 +17,10 @@ class _BudgetSearchScreenState extends State<BudgetSearchScreen> {
   final _budgetController = TextEditingController();
   int? _budget;
   bool _hasSearched = false;
+  bool _isLoading = false;
 
-  final List<Listing> _sampleListings = [
-    Listing(id: '1', hoteId: 'h1', titre: 'Chambre calme Madame Akobi', description: 'Chambre propre avec ventilateur', ville: 'Parakou', quartier: 'Zongo', adresse: 'Rue des Artisans', latitude: 9.337, longitude: 2.628, prixParNuit: 5000, photos: [], equipements: ['WiFi', 'Ventilateur'], certification: CertificationStatus.certified, note: 4.8, nombreAvis: 23, createdAt: DateTime.now()),
-    Listing(id: '6', hoteId: 'h6', titre: 'Chambre économique', description: 'Chambre simple et propre', ville: 'Parakou', quartier: 'Ganou', adresse: 'Route de Malanville', latitude: 9.340, longitude: 2.630, prixParNuit: 3000, photos: [], equipements: ['Ventilateur'], certification: CertificationStatus.certified, note: 4.2, nombreAvis: 45, createdAt: DateTime.now()),
-    Listing(id: '8', hoteId: 'h8', titre: 'Studio Akpakpa', description: 'Petit studio meublé', ville: 'Cotonou', quartier: 'Akpakpa', adresse: 'Rue des Pêcheurs', latitude: 6.370, longitude: 2.440, prixParNuit: 7000, photos: [], equipements: ['WiFi', 'Eau chaude'], certification: CertificationStatus.certified, note: 4.3, nombreAvis: 15, createdAt: DateTime.now()),
-    Listing(id: '9', hoteId: 'h9', titre: 'Chambre chez l\'habitant', description: 'Chambre chez famille accueillante', ville: 'Abomey', quartier: 'Gbègo', adresse: 'Quartier Gbègo', latitude: 7.180, longitude: 1.988, prixParNuit: 4000, photos: [], equipements: ['Ventilateur', 'Petit-déjeuner'], certification: CertificationStatus.certified, note: 4.6, nombreAvis: 31, createdAt: DateTime.now()),
-    Listing(id: '10', hoteId: 'h10', titre: 'Nuitée pas chère', description: 'Chambre d\'hôte économique', ville: 'Natitingou', quartier: 'Perma', adresse: 'Route nationale', latitude: 10.304, longitude: 1.376, prixParNuit: 2500, photos: [], equipements: ['Ventilateur'], certification: CertificationStatus.certified, note: 4.1, nombreAvis: 52, createdAt: DateTime.now()),
-  ];
-
-  List<Listing> get _results {
-    if (_budget == null) return [];
-    return _sampleListings.where((l) => l.prixParNuit <= _budget!).toList()
-      ..sort((a, b) => a.prixParNuit.compareTo(b.prixParNuit));
-  }
+  final _listingRepo = ListingRepository();
+  List<Listing> _results = [];
 
   @override
   void dispose() {
@@ -156,7 +147,12 @@ class _BudgetSearchScreenState extends State<BudgetSearchScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              if (results.isEmpty)
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator(color: FlexColors.primary500)),
+                )
+              else if (results.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(32),
                   alignment: Alignment.center,
@@ -178,10 +174,27 @@ class _BudgetSearchScreenState extends State<BudgetSearchScreen> {
     );
   }
 
-  void _search() {
+  Future<void> _search() async {
     final v = int.tryParse(_budgetController.text);
     if (v == null || v <= 0) return;
-    setState(() { _budget = v; _hasSearched = true; });
+    setState(() { _budget = v; _hasSearched = true; _isLoading = true; });
+    try {
+      final listings = await _listingRepo.getListings(prixMax: v.toDouble());
+      final sorted = List<Listing>.from(listings)
+        ..sort((a, b) => a.prixParNuit.compareTo(b.prixParNuit));
+      if (!mounted) return;
+      setState(() {
+        _results = sorted;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading budget listings: $e');
+      if (!mounted) return;
+      setState(() {
+        _results = [];
+        _isLoading = false;
+      });
+    }
   }
 
   void _setBudget(int amount) {
@@ -205,7 +218,7 @@ class _BudgetSearchScreenState extends State<BudgetSearchScreen> {
 
   Widget _buildResultCard(Listing listing, bool isDark, Color cardColor) {
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListingDetailScreen(listing: listing))),
+      onTap: () => context.push('/listing/${listing.id}', extra: listing),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),

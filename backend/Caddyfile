@@ -1,0 +1,39 @@
+{
+  email contact@flex.bj
+}
+
+flex.bj {
+  reverse_proxy localhost:8081
+
+  # Compression
+  encode gzip
+
+  # Security headers
+  header {
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    X-XSS-Protection "1; mode=block"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    -Server
+  }
+
+  # Logging
+  log {
+    output file /var/log/caddy/flex.log
+    format json
+  }
+}
+
+# Optional: API subdomain
+api.flex.bj {
+  reverse_proxy localhost:8081
+
+  encode gzip
+
+  header {
+    Access-Control-Allow-Origin "*"
+    Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers "Authorization, Content-Type"
+    -Server
+  }
+}

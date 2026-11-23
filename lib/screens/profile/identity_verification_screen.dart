@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/flex_theme.dart';
+import '../../services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -18,6 +20,18 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
   File? _birthCertificateImage;
   final ImagePicker _picker = ImagePicker();
 
+  @override
+  void initState() {
+    super.initState();
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      _status = IdentityVerificationStatus.values.firstWhere(
+        (s) => s.name == user.verificationStatus.name,
+        orElse: () => IdentityVerificationStatus.none,
+      );
+    }
+  }
+
   Future<void> _pickImage(ImageSource source, {required Function(File?) setImage}) async {
     final pickedFile = await _picker.pickImage(source: source);
     if (pickedFile != null) {
@@ -27,6 +41,8 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
     }
   }
 
+  bool _isSubmitting = false;
+
   Future<void> _submitForVerification() async {
     if (_idCardImage == null && _birthCertificateImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -35,27 +51,33 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
       return;
     }
 
-    setState(() {
-      _status = IdentityVerificationStatus.pending;
-    });
+    setState(() => _isSubmitting = true);
 
-    // Simulate API call for verification
-    await Future.delayed(const Duration(seconds: 3));
+    try {
+      // Note: In production, upload files to cloud storage and pass the URL.
+      // For now, pass the local path as a placeholder identifier.
+      await context.read<AuthService>().submitIdentity(
+        idCardUrl: _idCardImage?.path ?? '',
+        birthCertificateUrl: _birthCertificateImage?.path,
+      );
 
-    // For demonstration, let's randomly set status to verified or rejected
-    setState(() {
-      _status = (DateTime.now().second % 2 == 0) ? IdentityVerificationStatus.verified : IdentityVerificationStatus.rejected;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _status == IdentityVerificationStatus.verified
-              ? 'Vérification terminée : Vérifié !'
-              : 'Vérification terminée : Rejeté. Veuillez réessayer.',
-        ),
-      ),
-    );
+      if (mounted) {
+        setState(() {
+          _status = IdentityVerificationStatus.pending;
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Documents soumis — vérification en cours (24-48h)')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -112,11 +134,11 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _status == IdentityVerificationStatus.pending
+                onPressed: (_status == IdentityVerificationStatus.pending || _isSubmitting)
                     ? null
                     : _submitForVerification,
-                child: _status == IdentityVerificationStatus.pending
-                    ? const CircularProgressIndicator(color: Colors.white)
+                child: _isSubmitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Text('Soumettre pour vérification'),
               ),
             ),

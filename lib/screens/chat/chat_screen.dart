@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/message_repository.dart';
+import '../../services/chat_cache_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Listing listing;
+  final String recipientId;
   final String initialMessage;
-  const ChatScreen({super.key, required this.listing, this.initialMessage = ''});
+  const ChatScreen({
+    super.key,
+    required this.listing,
+    required this.recipientId,
+    this.initialMessage = '',
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -14,38 +22,91 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _msgRepo = MessageRepository();
   final List<_ChatMessage> _messages = [];
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialMessage.isNotEmpty) {
-      _messages.add(_ChatMessage(
-        text: widget.initialMessage, isMe: true, time: DateTime.now(),
-      ));
-    }
-    _messages.addAll([
-      _ChatMessage(text: 'Bonjour ! Oui, le logement est disponible.', isMe: false, time: DateTime.now().subtract(const Duration(seconds: 30))),
-    ]);
+    _loadHistory();
   }
 
-  void _sendMessage() {
+  Future<void> _loadHistory() async {
+    try {
+      final history = await _msgRepo.getConversation(widget.recipientId);
+      if (!mounted) return;
+      setState(() {
+        _messages.clear();
+        for (final m in history) {
+          // senderId is the other user's ID → isMe = false
+          final isMe = m['senderId'] != widget.recipientId;
+          _messages.add(_ChatMessage(
+            text: m['content'] ?? '',
+            isMe: isMe,
+            time: DateTime.tryParse(m['createdAt'] ?? '') ?? DateTime.now(),
+          ));
+        }
+      });
+      // If an initial message provided, send it now
+      if (widget.initialMessage.isNotEmpty && _messages.isEmpty) {
+        _messageController.text = widget.initialMessage;
+        _sendMessage();
+      } else if (_messages.isNotEmpty) {
+        _saveToCache(_messages.last);
+      }
+    } catch (e) {
+      debugPrint('Chat history error: $e');
+    }
+  }
+
+  void _saveToCache(_ChatMessage msg) {
+    ChatCacheService().saveConversation(ChatSummary(
+      recipientId: widget.recipientId,
+      listingId: widget.listing.id,
+      listingTitre: widget.listing.titre,
+      listingVille: widget.listing.ville,
+      listingQuartier: widget.listing.quartier,
+      lastMessage: msg.text,
+      lastTime: msg.time,
+    ));
+  }
+
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isSending) return;
+
     setState(() {
+      _isSending = true;
       _messages.add(_ChatMessage(text: text, isMe: true, time: DateTime.now()));
       _messageController.clear();
     });
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() {
-        _messages.add(_ChatMessage(
-          text: 'Merci pour votre message ! Je vous réponds dans les plus brefs délais.',
-          isMe: false, time: DateTime.now(),
-        ));
-      });
-      _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    _scrollToBottom();
+
+    try {
+      await _msgRepo.sendMessage(
+        recipientId: widget.recipientId,
+        content: text,
+        listingId: widget.listing.id,
+      );
+      _saveToCache(_messages.last);
+    } catch (e) {
+      debugPrint('Send error: $e');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
-    _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
   }
 
   @override

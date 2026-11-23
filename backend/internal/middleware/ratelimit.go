@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -91,13 +92,14 @@ func (m *RateLimitMiddleware) rateLimitByKey(c *gin.Context, key string, limit i
 	if count > int64(limit) {
 		ttl, _ := m.redis.TTL(ctx, key).Result()
 		c.Header("Retry-After", ttl.String())
-		c.Header("X-RateLimit-Limit", string(rune(limit)))
+		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
 		c.Header("X-RateLimit-Remaining", "0")
 		response.TooManyRequests(c, "Trop de requêtes. Réessayez plus tard.")
 		c.Abort()
 		return
 	}
 
-	c.Header("X-RateLimit-Remaining", string(rune(int64(limit)-count)))
+	c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
+	c.Header("X-RateLimit-Remaining", strconv.FormatInt(int64(limit)-count, 10))
 	c.Next()
 }

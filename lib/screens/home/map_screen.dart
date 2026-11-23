@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../models/models.dart';
+import '../../repositories/listing_repository.dart';
+import '../../shared/widgets/adaptive_overlay.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -12,12 +15,34 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final List<_MapListing> _listings = [
-    _MapListing('Chambre calme Parakou', 5000, 9.337, 2.628, CertificationStatus.certified),
-    _MapListing('Studio meublé Cotonou', 15000, 6.365, 2.420, CertificationStatus.certified),
-    _MapListing('Villa Ouidah', 35000, 6.360, 2.086, CertificationStatus.certified),
-    _MapListing('Chambre économique', 5000, 9.340, 2.630, CertificationStatus.pending),
-  ];
+  final _listingRepo = ListingRepository();
+  List<Listing> _listings = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final listings = await _listingRepo.getListings();
+      if (!mounted) return;
+      setState(() {
+        _listings = listings;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading map listings: $e');
+      if (!mounted) return;
+      setState(() {
+        _listings = [];
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +69,7 @@ class _MapScreenState extends State<MapScreen> {
               ),
               MarkerLayer(
                 markers: _listings.map((l) => Marker(
-                  point: LatLng(l.lat, l.lng),
+                  point: LatLng(l.latitude, l.longitude),
                   width: 160,
                   height: 60,
                   child: GestureDetector(
@@ -62,12 +87,12 @@ class _MapScreenState extends State<MapScreen> {
                           Container(
                             width: 8, height: 8,
                             decoration: BoxDecoration(
-                              color: l.cert == CertificationStatus.certified ? FlexColors.certified : FlexColors.warning,
+                              color: l.isCertified ? FlexColors.certified : FlexColors.warning,
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Text('${l.prix}k', style: TextStyle(
+                          Text('${l.prixParNuit.toInt()}k', style: TextStyle(
                             fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600,
                             color: FlexColors.primary500,
                           )),
@@ -79,6 +104,17 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ],
           ),
+          if (_isLoading)
+            const Positioned(
+              top: 12, right: 12,
+              child: Card(
+                elevation: 4,
+                child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: FlexColors.primary500),
+                ),
+              ),
+            ),
           Positioned(
             top: 12, left: 12,
             child: Container(
@@ -102,41 +138,44 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _showListingPreview(_MapListing listing) {
-    showModalBottomSheet(
+  void _showListingPreview(Listing listing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    AdaptiveOverlay.show(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(FlexRadius.xl)),
-      ),
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(FlexSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: FlexColors.neutral300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Text(listing.titre, style: FlexTextStyles.h3),
-            const SizedBox(height: 8),
-            Text('${listing.prix} FCFA/nuit', style: FlexTextStyles.h2.copyWith(color: FlexColors.primary500)),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Voir le détail'),
+      isSidePanel: true,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? FlexColors.neutral900 : FlexColors.neutral50,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(FlexRadius.xl)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(FlexSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: FlexColors.neutral300, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Text(listing.titre, style: FlexTextStyles.h3),
+              const SizedBox(height: 8),
+              Text('${listing.prixParNuit.toInt()} FCFA/nuit', style: FlexTextStyles.h2.copyWith(color: FlexColors.primary500)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.push('/listing/${listing.id}', extra: listing);
+                  },
+                  child: const Text('Voir le détail'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _MapListing {
-  final String titre; final int prix; final double lat; final double lng; final CertificationStatus cert;
-  _MapListing(this.titre, this.prix, this.lat, this.lng, this.cert);
 }
 
 class _LegendDot extends StatelessWidget {

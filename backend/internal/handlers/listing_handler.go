@@ -20,25 +20,47 @@ func NewListingHandler(listingRepo *repository.ListingRepository) *ListingHandle
 }
 
 type createListingInput struct {
-	Titre          string   `json:"titre" binding:"required"`
-	Description    string   `json:"description" binding:"required"`
-	Ville          string   `json:"ville" binding:"required"`
-	Quartier       string   `json:"quartier" binding:"required"`
-	Adresse        string   `json:"adresse" binding:"required"`
-	Latitude       float64  `json:"latitude" binding:"required"`
-	Longitude      float64  `json:"longitude" binding:"required"`
-	PrixParNuit    float64  `json:"prixParNuit" binding:"required"`
-	NombreChambres int      `json:"nombreChambres"`
-	Photos         []string `json:"photos"`
-	Equipements    []string `json:"equipements"`
+	Titre          string              `json:"titre" binding:"required"`
+	Description    string              `json:"description" binding:"required"`
+	TypeLogement   models.ListingType  `json:"typeLogement"`
+	Ville          string              `json:"ville" binding:"required"`
+	Quartier       string              `json:"quartier" binding:"required"`
+	Adresse        string              `json:"adresse" binding:"required"`
+	Latitude       float64             `json:"latitude" binding:"required"`
+	Longitude      float64             `json:"longitude" binding:"required"`
+	PrixParNuit    float64             `json:"prixParNuit" binding:"required"`
+	NombreChambres int                 `json:"nombreChambres"`
+	Photos         []string            `json:"photos"`
+	Equipements    []string            `json:"equipements"`
+}
+
+func (h *ListingHandler) requireHote(c *gin.Context) bool {
+	role, _ := middleware.GetRole(c)
+	if role != "hote" && role != "agent" {
+		response.Forbidden(c, "Devenez propriétaire pour publier un logement")
+		return false
+	}
+	return true
 }
 
 func (h *ListingHandler) Create(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 
+	if !h.requireHote(c) {
+		return
+	}
+
 	var input createListingInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.BadRequest(c, "Données invalides: "+err.Error())
+		return
+	}
+
+	if input.TypeLogement == "" {
+		input.TypeLogement = models.TypeChambre
+	}
+	if !models.ValidListingTypes[input.TypeLogement] {
+		response.BadRequest(c, "Type de logement invalide")
 		return
 	}
 
@@ -97,6 +119,11 @@ func (h *ListingHandler) List(c *gin.Context) {
 	if cert := c.Query("certification"); cert != "" {
 		filters["certification"] = cert
 	}
+	if listingType := c.Query("type"); listingType != "" {
+		if models.ValidListingTypes[models.ListingType(listingType)] {
+			filters["type"] = listingType
+		}
+	}
 	if search := c.Query("search"); search != "" {
 		filters["search"] = search
 	}
@@ -119,6 +146,12 @@ func (h *ListingHandler) Update(c *gin.Context) {
 	}
 
 	userID, _ := middleware.GetUserID(c)
+	role, _ := middleware.GetRole(c)
+
+	if role != "hote" && role != "agent" {
+		response.Forbidden(c, "Devenez propriétaire pour modifier un logement")
+		return
+	}
 
 	listing, err := h.listingRepo.FindByID(c.Request.Context(), id)
 	if err != nil {
@@ -126,7 +159,7 @@ func (h *ListingHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if listing.HoteID != userID {
+	if listing.HoteID != userID && role != "agent" {
 		response.Forbidden(c, "Vous n'êtes pas le propriétaire de ce logement")
 		return
 	}
@@ -137,17 +170,24 @@ func (h *ListingHandler) Update(c *gin.Context) {
 		return
 	}
 
-	delete(input, "id")
-	delete(input, "hote_id")
-	delete(input, "certification")
-	delete(input, "note")
+	for _, key := range []string{"id", "hoteId", "hote_id", "certification", "note", "nombreAvis", "viewsCount", "createdAt", "updatedAt"} {
+		delete(input, key)
+	}
 
-	if err := h.listingRepo.Update(c.Request.Context(), listing); err != nil {
+	if listingType, ok := input["typeLogement"].(string); ok && listingType != "" {
+		if !models.ValidListingTypes[models.ListingType(listingType)] {
+			response.BadRequest(c, "Type de logement invalide")
+			return
+		}
+	}
+
+	if err := h.listingRepo.UpdateFields(c.Request.Context(), id, input); err != nil {
 		response.InternalError(c, "Erreur lors de la mise à jour")
 		return
 	}
 
-	response.OK(c, "Logement mis à jour", listing)
+	updated, _ := h.listingRepo.FindByID(c.Request.Context(), id)
+	response.OK(c, "Logement mis à jour", updated)
 }
 
 func (h *ListingHandler) Delete(c *gin.Context) {
@@ -196,6 +236,7 @@ func createListingFromInput(input createListingInput, hoteID uuid.UUID) *models.
 		HoteID:         hoteID,
 		Titre:          input.Titre,
 		Description:    input.Description,
+		TypeLogement:   input.TypeLogement,
 		Ville:          input.Ville,
 		Quartier:       input.Quartier,
 		Adresse:        input.Adresse,
@@ -203,7 +244,21 @@ func createListingFromInput(input createListingInput, hoteID uuid.UUID) *models.
 		Longitude:      input.Longitude,
 		PrixParNuit:    input.PrixParNuit,
 		NombreChambres: input.NombreChambres,
-		Photos:         input.Photos,
-		Equipements:    input.Equipements,
+		Photos:         models.StringArray(input.Photos),
+		Equipements:    models.StringArray(input.Equipements),
 	}
+}
+
+// Stats renvoie les statistiques de la liste publique (counts par type).
+func (h *ListingHandler) Stats(c *gin.Context) {
+	stats, total, err := h.listingRepo.StatsByType(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "Erreur lors de la récupération des statistiques")
+		return
+	}
+
+	response.OK(c, "Statistiques des logements", gin.H{
+		"byType": stats,
+		"total":  total,
+	})
 }

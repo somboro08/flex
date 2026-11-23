@@ -15,11 +15,32 @@ const (
 	CertRejected  CertificationStatus = "rejected"
 )
 
+// TypeLogement: chambre, studio, appartement, villa, maison, cohabitation, espace, club, autre
+type ListingType string
+
+const (
+	TypeChambre       ListingType = "chambre"
+	TypeStudio        ListingType = "studio"
+	TypeAppartement   ListingType = "appartement"
+	TypeVilla         ListingType = "villa"
+	TypeMaison        ListingType = "maison"
+	TypeCohabitation  ListingType = "cohabitation"
+	TypeEspace        ListingType = "espace"
+	TypeClub          ListingType = "club"
+	TypeAutre         ListingType = "autre"
+)
+
+var ValidListingTypes = map[ListingType]bool{
+	TypeChambre: true, TypeStudio: true, TypeAppartement: true, TypeVilla: true,
+	TypeMaison: true, TypeCohabitation: true, TypeEspace: true, TypeClub: true, TypeAutre: true,
+}
+
 type Listing struct {
 	ID              uuid.UUID           `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	HoteID          uuid.UUID           `gorm:"type:uuid;not null;index" json:"hoteId"`
 	Titre           string              `gorm:"size:200;not null" json:"titre" binding:"required"`
 	Description     string              `gorm:"type:text;not null" json:"description" binding:"required"`
+	TypeLogement    ListingType         `gorm:"size:30;not null;default:chambre" json:"typeLogement"`
 	Ville           string              `gorm:"size:100;not null;index" json:"ville" binding:"required"`
 	Quartier        string              `gorm:"size:100;not null" json:"quartier" binding:"required"`
 	Adresse         string              `gorm:"type:text;not null" json:"adresse" binding:"required"`
@@ -27,8 +48,8 @@ type Listing struct {
 	Longitude       float64             `gorm:"type:decimal(10,7);not null" json:"longitude" binding:"required"`
 	PrixParNuit     float64             `gorm:"type:decimal(10,2);not null;check:prix_par_nuit > 0" json:"prixParNuit" binding:"required"`
 	NombreChambres  int                 `gorm:"default:1" json:"nombreChambres"`
-	Photos          []string            `gorm:"type:text[];default:'{}'" json:"photos"`
-	Equipements     []string            `gorm:"type:text[];default:'{}'" json:"equipements"`
+	Photos          StringArray         `gorm:"type:text[];default:'{}'" json:"photos"`
+	Equipements     StringArray         `gorm:"type:text[];default:'{}'" json:"equipements"`
 	Certification   CertificationStatus `gorm:"type:certification_status;default:pending" json:"certification"`
 	Note            float64             `gorm:"type:decimal(2,1);default:0.0" json:"note"`
 	NombreAvis      int                 `gorm:"default:0" json:"nombreAvis"`
@@ -38,9 +59,9 @@ type Listing struct {
 	UpdatedAt       time.Time           `json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt      `gorm:"index" json:"-"`
 
-	Hote    User      `gorm:"foreignKey:HoteID" json:"hote,omitempty"`
+	Hote     User      `gorm:"foreignKey:HoteID" json:"hote,omitempty"`
 	Bookings []Booking `gorm:"foreignKey:ListingID" json:"bookings,omitempty"`
-	Audits  []Audit   `gorm:"foreignKey:ListingID" json:"audits,omitempty"`
+	Audits   []Audit   `gorm:"foreignKey:ListingID" json:"audits,omitempty"`
 }
 
 func (Listing) TableName() string { return "listings" }

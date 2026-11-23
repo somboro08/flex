@@ -72,14 +72,19 @@ func (r *BookingRepository) Update(ctx context.Context, booking *models.Booking)
 	return r.db.WithContext(ctx).Save(booking).Error
 }
 
+// UpdateFields applies a map of DB column → value updates to a booking.
+func (r *BookingRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields map[string]interface{}) error {
+	return r.db.WithContext(ctx).Model(&models.Booking{}).Where("id = ? AND deleted_at IS NULL", id).Updates(fields).Error
+}
+
 func (r *BookingRepository) Cancel(ctx context.Context, id, userID uuid.UUID) error {
 	booking, err := r.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if booking.VoyageurID != userID {
-		return errors.New("vous n'êtes pas le propriétaire de cette réservation")
+	if booking.VoyageurID != userID && booking.HoteID != userID {
+		return errors.New("vous n'avez pas accès à cette réservation")
 	}
 
 	if !booking.CanCancel() {
