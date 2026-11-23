@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../services/auth_service.dart';
 import '../theme/flex_theme.dart';
+import '../utils/rental_utils.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
