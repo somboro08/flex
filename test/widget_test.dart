@@ -1,3 +1,4 @@
+import 'dart:ui' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flex_app/main.dart';
 import 'package:flex_app/theme/theme_provider.dart';
