@@ -114,7 +114,15 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
       await Future.delayed(const Duration(seconds: 2));
       final prefs = await SharedPreferences.getInstance();
       final onboardingDone = prefs.getBool('onboarding_done') ?? false;
-      
+
+      // First-run users do not need Firebase Auth initialized to see onboarding.
+      if (!onboardingDone) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/onboarding');
+        }
+        return;
+      }
+
       bool isLoggedIn = false;
       try {
         isLoggedIn = FirebaseAuth.instance.currentUser != null;
@@ -124,9 +132,7 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
 
       if (!mounted) return;
 
-      if (!onboardingDone) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else if (!isLoggedIn) {
+      if (!isLoggedIn) {
         Navigator.of(context).pushReplacementNamed('/auth');
       } else {
         Navigator.of(context).pushReplacementNamed('/home');
