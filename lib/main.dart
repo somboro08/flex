@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'theme/flex_theme.dart';
 import 'theme/theme_provider.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -25,11 +23,11 @@ import 'screens/locataire/locataire_rentals_screen.dart';
 import 'screens/locataire/advance_payment_screen.dart';
 import 'screens/locataire/refund_request_screen.dart';
 import 'screens/locataire/renew_booking_screen.dart';
+import 'services/auth_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   await initializeDateFormatting('fr', null);
   runApp(
     ChangeNotifierProvider(
@@ -78,10 +76,6 @@ class FlexApp extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-//  SPLASH — decides where to route
-// ─────────────────────────────────────────────
-
 class _Splash extends StatefulWidget {
   const _Splash();
 
@@ -115,7 +109,6 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
       final prefs = await SharedPreferences.getInstance();
       final onboardingDone = prefs.getBool('onboarding_done') ?? false;
 
-      // First-run users do not need Firebase Auth initialized to see onboarding.
       if (!onboardingDone) {
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/onboarding');
@@ -123,24 +116,16 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
         return;
       }
 
-      bool isLoggedIn = false;
-      try {
-        isLoggedIn = FirebaseAuth.instance.currentUser != null;
-      } catch (e) {
-        debugPrint('Auth error: $e');
-      }
-
+      final isLoggedIn = await AuthService().restoreSession();
       if (!mounted) return;
 
-      if (!isLoggedIn) {
-        Navigator.of(context).pushReplacementNamed('/auth');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    } catch (e) {
-      debugPrint('Error during navigation: $e');
+      Navigator.of(context).pushReplacementNamed(
+        isLoggedIn ? '/home' : '/auth',
+      );
+    } catch (error) {
+      debugPrint('Error during startup: $error');
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
+        Navigator.of(context).pushReplacementNamed('/auth');
       }
     }
   }
@@ -157,7 +142,6 @@ class _SplashState extends State<_Splash> with SingleTickerProviderStateMixin {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo
                 Container(
                   width: 88,
                   height: 88,
