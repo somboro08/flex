@@ -37,7 +37,7 @@ class _AgentAuditScreenState extends State<AgentAuditScreen> {
 
   Future<void> _submitAudit(CertificationStatus status) async {
     setState(() => _isSubmitting = true);
-    // TODO: save to Firestore
+    // TODO: persist audit through the Flex API
     await Future.delayed(const Duration(seconds: 1));
     setState(() => _isSubmitting = false);
     if (mounted) {
