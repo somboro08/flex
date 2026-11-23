@@ -1,16 +1,70 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/api_config.dart';
 import 'api_client.dart';
 
 /// Authentication backed exclusively by the Flex REST API.
 class AuthService {
+  AuthService() {
+    _installInterceptors();
+  }
+
   static const _accessTokenKey = 'flex_access_token';
   static const _refreshTokenKey = 'flex_refresh_token';
 
-  static const _accessTokenHeader = 'Authorization';
+  static bool _interceptorsInstalled = false;
+  static Future<String?>? _refreshFuture;
 
   Dio get _api => ApiClient.instance;
+
+  void _installInterceptors() {
+    if (_interceptorsInstalled) return;
+    _interceptorsInstalled = true;
+
+    _api.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final token = prefs.getString(_accessTokenKey);
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          } catch (_) {
+            // Continue; public API calls should still be possible.
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final request = error.requestOptions;
+          final isAuthRoute = request.path.contains('/auth/');
+          if (error.response?.statusCode != 401 ||
+              isAuthRoute ||
+              request.extra['authRetry'] == true) {
+            handler.next(error);
+            return;
+          }
+
+          try {
+            final accessToken = await _refreshAccessToken();
+            if (accessToken == null) {
+              handler.next(error);
+              return;
+            }
+
+            request.headers['Authorization'] = 'Bearer $accessToken';
+            request.extra['authRetry'] = true;
+            final response = await _api.fetch<dynamic>(request);
+            handler.resolve(response);
+          } catch (_) {
+            await _clearSession();
+            handler.next(error);
+          }
+        },
+      ),
+    );
+  }
 
   Future<Map<String, dynamic>> login({
     required String telephone,
@@ -58,34 +112,15 @@ class AuthService {
     }
   }
 
-  /// Restores the local JWT session and validates it against GET /me.
-  /// If the access token expired, one refresh attempt is made.
+  /// Restores and validates the JWT session against GET /me.
+  /// The interceptor refreshes an expired access token automatically.
   Future<bool> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     final accessToken = prefs.getString(_accessTokenKey);
-    final refreshToken = prefs.getString(_refreshTokenKey);
-
     if (accessToken == null || accessToken.isEmpty) return false;
+
     _setAccessToken(accessToken);
-
     try {
-      await _api.get('/me');
-      return true;
-    } on DioException catch (error) {
-      if (error.response?.statusCode != 401 ||
-          refreshToken == null ||
-          refreshToken.isEmpty) {
-        await _clearSession();
-        return false;
-      }
-    }
-
-    try {
-      final response = await _api.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-      await _saveSession(_responseData(response.data));
       await _api.get('/me');
       return true;
     } catch (_) {
@@ -110,6 +145,57 @@ class AuthService {
     }
   }
 
+  Future<String?> _refreshAccessToken() {
+    final current = _refreshFuture;
+    if (current != null) return current;
+
+    final pending = _performRefresh();
+    _refreshFuture = pending;
+    return pending.whenComplete(() => _refreshFuture = null);
+  }
+
+  Future<String?> _performRefresh() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString(_refreshTokenKey);
+    if (refreshToken == null || refreshToken.isEmpty) return null;
+
+    final refreshClient = Dio(
+      BaseOptions(
+        baseUrl: ApiConfig.baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 20),
+        headers: const {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      ),
+    );
+
+    final response = await refreshClient.post(
+      '/auth/refresh',
+      data: {'refreshToken': refreshToken},
+    );
+    final data = _responseData(response.data);
+    final tokens = data['tokens'];
+    if (tokens is! Map) {
+      throw const AuthException('Réponse API invalide : jetons absents.');
+    }
+
+    final accessToken = tokens['accessToken']?.toString();
+    final newRefreshToken = tokens['refreshToken']?.toString();
+    if (accessToken == null ||
+        accessToken.isEmpty ||
+        newRefreshToken == null ||
+        newRefreshToken.isEmpty) {
+      throw const AuthException('Réponse API invalide : jetons incomplets.');
+    }
+
+    await prefs.setString(_accessTokenKey, accessToken);
+    await prefs.setString(_refreshTokenKey, newRefreshToken);
+    _setAccessToken(accessToken);
+    return accessToken;
+  }
+
   Future<void> _saveSession(Map<String, dynamic> data) async {
     final tokens = data['tokens'];
     if (tokens is! Map) {
@@ -132,14 +218,14 @@ class AuthService {
   }
 
   void _setAccessToken(String token) {
-    _api.options.headers[_accessTokenHeader] = 'Bearer $token';
+    _api.options.headers['Authorization'] = 'Bearer $token';
   }
 
   Future<void> _clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_accessTokenKey);
     await prefs.remove(_refreshTokenKey);
-    _api.options.headers.remove(_accessTokenHeader);
+    _api.options.headers.remove('Authorization');
   }
 
   Map<String, dynamic> _responseData(dynamic response) {
