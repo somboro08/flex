@@ -58,7 +58,8 @@ type changePasswordInput struct {
 }
 
 type resetPasswordInput struct {
-	Telephone   string `json:"telephone" binding:"required"`
+	Identifier  string `json:"identifier"`
+	Telephone   string `json:"telephone"`
 	OTPCode     string `json:"otpCode" binding:"required"`
 	NewPassword string `json:"newPassword" binding:"required"`
 }
@@ -231,7 +232,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ResetPassword(c.Request.Context(), input.Telephone, input.OTPCode, input.NewPassword); err != nil {
+	if err := h.authService.ResetPassword(c.Request.Context(), input.Identifier, input.OTPCode, input.NewPassword); err != nil {
 		response.Error(c, http.StatusBadRequest, "RESET_FAILED", err.Error())
 		return
 	}

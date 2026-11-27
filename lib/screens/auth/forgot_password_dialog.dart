@@ -115,7 +115,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
 
     try {
       await AuthService().resetPassword(
-        telephone: phone,
+        identifier: phone,
         otpCode: code,
         newPassword: password,
       );

@@ -345,6 +345,8 @@ func (s *AuthService) SendOTP(ctx context.Context, identifier, purpose string) (
 	if err := s.deliverOTP(identifier, purpose, code); err != nil {
 		// Do not leave a usable code behind when delivery failed.
 		_ = s.otpRepo.MarkUsed(ctx, otp.ID)
+		log.Error().Err(err).Str("identifier", identifier).Str("purpose", purpose).
+			Msg("OTP delivery failed")
 		return "", err
 	}
 
@@ -433,13 +435,26 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 	return nil
 }
 
-func (s *AuthService) ResetPassword(ctx context.Context, telephone, otpCode, newPassword string) error {
-	if err := s.VerifyOTP(ctx, telephone, otpCode, "password_reset"); err != nil {
-		return err
+// ResetPassword consumes a password-reset OTP and sets a new password.
+// The identifier is either a phone number or an e-mail address, matching the
+// channel the code was sent to.
+func (s *AuthService) ResetPassword(ctx context.Context, identifier, otpCode, newPassword string) error {
+	identifier = strings.TrimSpace(identifier)
+
+	var (
+		user *models.User
+		err  error
+	)
+	if strings.Contains(identifier, "@") {
+		user, err = s.userRepo.FindByEmail(ctx, identifier)
+	} else {
+		user, err = s.userRepo.FindByTelephone(ctx, identifier)
+	}
+	if err != nil || user == nil {
+		return ErrUserNotFound
 	}
 
-	user, err := s.userRepo.FindByTelephone(ctx, telephone)
-	if err != nil {
+	if err := s.VerifyOTP(ctx, identifier, otpCode, "password_reset"); err != nil {
 		return err
 	}
 
