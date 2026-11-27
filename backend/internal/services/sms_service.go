@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/somboro08/flex-api/internal/config"
@@ -56,7 +57,7 @@ func (s *SMSService) sendViaTwilio(to, message string) error {
 	req.SetBasicAuth(s.cfg.TwilioAccountSID, s.cfg.TwilioAuthToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Error().Err(err).Str("to", to).Msg("Erreur lors de l'envoi du SMS Twilio")

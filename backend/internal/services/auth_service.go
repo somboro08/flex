@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,11 +72,11 @@ func NewAuthService(
 }
 
 type RegisterRequest struct {
-	Nom       string        `json:"nom" binding:"required"`
-	Prenom    string        `json:"prenom" binding:"required"`
-	Telephone string        `json:"telephone" binding:"required"`
-	Email     *string       `json:"email,omitempty"`
-	Password  string        `json:"password" binding:"required"`
+	Nom       string          `json:"nom" binding:"required"`
+	Prenom    string          `json:"prenom" binding:"required"`
+	Telephone string          `json:"telephone" binding:"required"`
+	Email     *string         `json:"email,omitempty"`
+	Password  string          `json:"password" binding:"required"`
 	Role      models.UserRole `json:"role"`
 }
 
@@ -85,8 +86,8 @@ type LoginRequest struct {
 }
 
 type AuthResponse struct {
-	User         *models.User `json:"user"`
-	TokenPair    *jwt.TokenPair `json:"tokens"`
+	User      *models.User   `json:"user"`
+	TokenPair *jwt.TokenPair `json:"tokens"`
 }
 
 func RoleFromString(role string) models.UserRole {
@@ -340,7 +341,47 @@ func (s *AuthService) SendOTP(ctx context.Context, identifier, purpose string) (
 		return "", fmt.Errorf("failed to save OTP: %w", err)
 	}
 
+	if err := s.deliverOTP(identifier, purpose, code); err != nil {
+		// Do not leave a usable code behind when delivery failed.
+		_ = s.otpRepo.MarkUsed(ctx, otp.ID)
+		return "", err
+	}
+
 	return code, nil
+}
+
+// deliverOTP sends the code through the configured channel: e-mail when the
+// identifier contains "@", SMS otherwise. When Twilio/SMTP are not configured
+// the underlying services log the code and return nil (development mode).
+func (s *AuthService) deliverOTP(identifier, purpose, code string) error {
+	if strings.Contains(identifier, "@") {
+		subject := "Votre code de vérification Flex"
+		body := fmt.Sprintf("Votre code Flex est %s. Il expire dans %d minutes.", code, otpExpiryMinutes)
+		if purpose == "password_reset" {
+			subject = "Réinitialisation de votre mot de passe Flex"
+			body = fmt.Sprintf("Votre code de réinitialisation Flex est %s. Il expire dans %d minutes.", code, otpExpiryMinutes)
+		}
+
+		if err := s.emailSvc.Send(EmailMessage{
+			To:      []string{identifier},
+			Subject: subject,
+			Body:    body,
+		}); err != nil {
+			return fmt.Errorf("failed to send OTP email: %w", err)
+		}
+		return nil
+	}
+
+	var err error
+	if purpose == "password_reset" {
+		err = s.smsSvc.SendPasswordResetOTP(identifier, code)
+	} else {
+		err = s.smsSvc.SendOTP(identifier, code)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to send OTP SMS: %w", err)
+	}
+	return nil
 }
 
 func (s *AuthService) VerifyOTP(ctx context.Context, identifier, code, purpose string) error {
@@ -381,9 +422,14 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	return s.userRepo.UpdateFields(ctx, userID, map[string]interface{}{
+	if err := s.userRepo.UpdateFields(ctx, userID, map[string]interface{}{
 		"password_hash": string(hashedPassword),
-	})
+	}); err != nil {
+		return err
+	}
+
+	s.revokeSessions(ctx, userID)
+	return nil
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, telephone, otpCode, newPassword string) error {
@@ -405,9 +451,27 @@ func (s *AuthService) ResetPassword(ctx context.Context, telephone, otpCode, new
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	return s.userRepo.UpdateFields(ctx, user.ID, map[string]interface{}{
+	if err := s.userRepo.UpdateFields(ctx, user.ID, map[string]interface{}{
 		"password_hash": string(hashedPassword),
-	})
+	}); err != nil {
+		return err
+	}
+
+	s.revokeSessions(ctx, user.ID)
+	return nil
+}
+
+// revokeSessions invalidates every refresh token/session for the user.
+// Called after a password change or reset so stolen tokens stop working.
+func (s *AuthService) revokeSessions(ctx context.Context, userID uuid.UUID) {
+	if err := s.sessionRepo.RevokeAllByUserID(ctx, userID); err != nil {
+		log.Warn().Err(err).Str("user_id", userID.String()).
+			Msg("failed to revoke sessions after password change")
+	}
+	if err := s.userRepo.UpdateRefreshToken(ctx, userID, ""); err != nil {
+		log.Warn().Err(err).Str("user_id", userID.String()).
+			Msg("failed to clear refresh token after password change")
+	}
 }
 
 func (s *AuthService) GetProfile(ctx context.Context, userID uuid.UUID) (*models.User, error) {

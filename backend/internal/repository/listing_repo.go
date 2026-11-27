@@ -40,8 +40,31 @@ func (r *ListingRepository) FindAll(ctx context.Context, filters map[string]inte
 	var listings []models.Listing
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&models.Listing{}).Where("deleted_at IS NULL")
+	// Build a fresh query for each statement: reusing the same *gorm.DB after
+	// Count() can leak the count SELECT/ORDER state into the Find() query.
+	baseQuery := func() *gorm.DB {
+		return applyListingFilters(
+			r.db.WithContext(ctx).Model(&models.Listing{}).Where("deleted_at IS NULL"),
+			filters,
+		)
+	}
 
+	if err := baseQuery().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * perPage
+	err := baseQuery().
+		Preload("Hote").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(perPage).
+		Find(&listings).Error
+
+	return listings, total, err
+}
+
+func applyListingFilters(query *gorm.DB, filters map[string]interface{}) *gorm.DB {
 	if ville, ok := filters["ville"]; ok {
 		query = query.Where("ville = ?", ville)
 	}
@@ -60,22 +83,12 @@ func (r *ListingRepository) FindAll(ctx context.Context, filters map[string]inte
 	if isDisponible, ok := filters["is_disponible"]; ok {
 		query = query.Where("is_disponible = ?", isDisponible)
 	}
-	if search, ok := filters["search"]; ok {
+	if search, ok := filters["search"].(string); ok && search != "" {
+		pattern := "%" + search + "%"
 		query = query.Where("titre ILIKE ? OR description ILIKE ? OR ville ILIKE ?",
-			"%"+search.(string)+"%", "%"+search.(string)+"%", "%"+search.(string)+"%")
+			pattern, pattern, pattern)
 	}
-
-	query.Count(&total)
-
-	offset := (page - 1) * perPage
-	err := query.
-		Preload("Hote").
-		Order("created_at DESC").
-		Offset(offset).
-		Limit(perPage).
-		Find(&listings).Error
-
-	return listings, total, err
+	return query
 }
 
 func (r *ListingRepository) FindByHoteID(ctx context.Context, hoteID uuid.UUID) ([]models.Listing, error) {
@@ -106,19 +119,19 @@ func (r *ListingRepository) Update(ctx context.Context, listing *models.Listing)
 // UpdateFields applies only the allowed fields (maps JSON camelCase keys to DB columns).
 func (r *ListingRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields map[string]interface{}) error {
 	columnMapping := map[string]string{
-		"titre":           "titre",
-		"description":     "description",
-		"typeLogement":    "type_logement",
-		"ville":           "ville",
-		"quartier":        "quartier",
-		"adresse":         "adresse",
-		"latitude":        "latitude",
-		"longitude":       "longitude",
-		"prixParNuit":     "prix_par_nuit",
-		"nombreChambres":  "nombre_chambres",
-		"photos":          "photos",
-		"equipements":     "equipements",
-		"isDisponible":    "is_disponible",
+		"titre":          "titre",
+		"description":    "description",
+		"typeLogement":   "type_logement",
+		"ville":          "ville",
+		"quartier":       "quartier",
+		"adresse":        "adresse",
+		"latitude":       "latitude",
+		"longitude":      "longitude",
+		"prixParNuit":    "prix_par_nuit",
+		"nombreChambres": "nombre_chambres",
+		"photos":         "photos",
+		"equipements":    "equipements",
+		"isDisponible":   "is_disponible",
 	}
 
 	updates := map[string]interface{}{}

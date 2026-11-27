@@ -11,7 +11,10 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-s -w" \
-    -o /app/bin/server ./cmd/server
+    -o /app/bin/server ./cmd/server && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w" \
+    -o /app/bin/migrate ./cmd/migrate
 
 FROM alpine:3.19
 
@@ -20,11 +23,14 @@ RUN apk add --no-cache ca-certificates tzdata curl
 WORKDIR /app
 
 COPY --from=builder /app/bin/server .
+COPY --from=builder /app/bin/migrate .
 COPY --from=builder /app/migrations ./migrations
+COPY docker-entrypoint.sh .
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
