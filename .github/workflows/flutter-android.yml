@@ -91,7 +91,21 @@ jobs:
           echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
 
       - name: Build release APK
-        run: flutter build apk --release --dart-define=API_BASE_URL="$API_BASE_URL"
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release --dart-define=API_BASE_URL="$API_BASE_URL" 2>&1 | tee build-apk.log
+
+      - name: Publish build log on failure
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '### Build log (last 300 lines)'
+            echo '```'
+            tail -n 300 build-apk.log 2>/dev/null || echo 'no build log captured'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
