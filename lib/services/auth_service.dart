@@ -172,13 +172,13 @@ class AuthService extends ChangeNotifier {
   ///
   /// The backend verifies and consumes the code in this single request.
   Future<void> resetPassword({
-    required String telephone,
+    required String identifier,
     required String otpCode,
     required String newPassword,
   }) async {
     try {
       await _api.dio.post('/auth/password/reset', data: {
-        'telephone': telephone,
+        'identifier': identifier,
         'otpCode': otpCode,
         'newPassword': newPassword,
       });
