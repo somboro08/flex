@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -506,7 +507,19 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, field
 	return s.userRepo.UpdateFields(ctx, userID, fields)
 }
 
-// IsDevelopment returns true when the server runs outside the production environment.
+// IsDevelopment returns true when the server runs outside production.
+//
+// Checking ENVIRONMENT alone is not safe on managed platforms: Render (and
+// similar hosts) fall back to "development" when the variable is missing,
+// which used to leak OTP codes in API responses. Treat hosted deployments as
+// production unless the environment is explicitly configured.
 func (s *AuthService) IsDevelopment() bool {
-	return !s.cfg.IsProduction()
+	if s.cfg.IsProduction() {
+		return false
+	}
+	if os.Getenv("RENDER") != "" || os.Getenv("RENDER_SERVICE_ID") != "" {
+		log.Warn().Msg("ENVIRONMENT is not set to production on Render; OTP codes are hidden from responses")
+		return false
+	}
+	return true
 }
