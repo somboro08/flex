@@ -53,7 +53,9 @@ class ApiClient {
               path.contains('/auth/refresh') ||
               path.contains('/auth/otp') ||
               path.contains('/auth/forgot-password') ||
-              path.contains('/auth/reset-password');
+              path.contains('/auth/reset-password') ||
+              path.contains('/auth/password/reset') ||
+              path.contains('/auth/logout');
 
           if (e.response?.statusCode == 401 && !isAuthCall) {
             final success = await _refreshToken();

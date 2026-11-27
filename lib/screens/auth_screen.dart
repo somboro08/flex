@@ -9,6 +9,8 @@ import '../services/api_client.dart';
 import '../core/responsive/breakpoints.dart';
 import '../shared/widgets/adaptive_overlay.dart';
 import '../shared/widgets/adaptive_dialog_content.dart';
+import '../utils/password_validator.dart';
+import 'auth/forgot_password_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -71,6 +73,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
+  Future<void> _openForgotPassword() async {
+    final reset = await showForgotPasswordDialog(
+      context,
+      initialPhone: _fullPhone,
+    );
+    if (reset == true && mounted) {
+      _showError('Mot de passe réinitialisé. Vous pouvez vous connecter.');
+    }
+  }
+
   Future<void> _register() async {
     final nom = _nomController.text.trim();
     final prenom = _prenomController.text.trim();
@@ -80,7 +92,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     if (nom.isEmpty) { _showError('Entrez votre nom'); return; }
     if (prenom.isEmpty) { _showError('Entrez votre prénom'); return; }
     if (phone.length < 8) { _showError('Entrez un numéro de téléphone valide'); return; }
-    if (password.length < 6) { _showError('Mot de passe : 6 caractères minimum'); return; }
+    final passwordError = strongPasswordError(password);
+    if (passwordError != null) { _showError('Mot de passe : $passwordError'); return; }
     final email = _emailController.text.trim();
     if (email.isNotEmpty && !email.contains('@')) { _showError('Entrez un e-mail valide'); return; }
 
@@ -437,6 +450,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             suffixIcon: IconButton(icon: Icon(_isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined),
               onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible))),
         ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _isLoading ? null : _openForgotPassword,
+            child: const Text('Mot de passe oublié ?'),
+          ),
+        ),
       ],
     );
   }
@@ -471,7 +491,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           controller: _registerPasswordController,
           obscureText: !_isRegisterPasswordVisible,
           style: TextStyle(fontSize: 16, color: isDark ? FlexColors.neutral0 : FlexColors.neutral800),
-          decoration: InputDecoration(hintText: 'Mot de passe (6+ caractères)', prefixIcon: const Icon(Icons.lock_outline),
+          decoration: InputDecoration(hintText: 'Mot de passe (8+, maj., min., chiffre, spécial)', prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(icon: Icon(_isRegisterPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined),
               onPressed: () => setState(() => _isRegisterPasswordVisible = !_isRegisterPasswordVisible))),
         ),

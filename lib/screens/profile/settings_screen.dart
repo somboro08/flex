@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/flex_theme.dart';
 import '../../theme/theme_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_client.dart';
+import '../../utils/password_validator.dart';
 import 'package:provider/provider.dart';
 import '../../shared/widgets/adaptive_overlay.dart';
 import '../../shared/widgets/adaptive_dialog_content.dart';
@@ -93,6 +95,12 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => _showChangePasswordDialog(context),
               ),
               _SettingsItem(
+                title: 'Déconnecter tous les appareils',
+                subtitle: 'Révoque toutes les sessions actives',
+                isDark: isDark,
+                onTap: () => _confirmLogoutAll(context),
+              ),
+              _SettingsItem(
                 title: 'Supprimer mon compte',
                 isDark: isDark,
                 textColor: FlexColors.error,
@@ -114,22 +122,27 @@ class SettingsScreen extends StatelessWidget {
       child: StatefulBuilder(
         builder: (ctx, setState) {
           void submit() async {
-            if (newPassCtrl.text.length < 6) {
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Mot de passe : 6 caractères minimum')));
+            final passwordError = strongPasswordError(newPassCtrl.text);
+            if (passwordError != null) {
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(passwordError)));
               return;
             }
             setState(() => saving = true);
+            final auth = context.read<AuthService>();
             try {
-              await context.read<AuthService>().changePassword(
+              await auth.changePassword(
                 oldPassword: oldPassCtrl.text,
                 newPassword: newPassCtrl.text,
               );
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Mot de passe mis à jour avec succès.')),
-                );
-              }
+              // The backend revokes every session on password change, so the
+              // current tokens are no longer valid: force a fresh login.
+              await auth.signOut();
+              if (!context.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Mot de passe mis à jour. Veuillez vous reconnecter.')),
+              );
+              context.go('/auth');
             } catch (e) {
               if (ctx.mounted) {
                 setState(() => saving = false);
@@ -158,11 +171,38 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 TextField(controller: oldPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Ancien mot de passe')),
                 const SizedBox(height: 8),
-                TextField(controller: newPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Nouveau mot de passe (6+)')),
+                TextField(controller: newPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Nouveau mot de passe')),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _confirmLogoutAll(BuildContext context) {
+    AdaptiveOverlay.show(
+      context: context,
+      child: AdaptiveDialogContent(
+        title: 'Déconnecter tous les appareils',
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: FlexColors.error),
+            onPressed: () async {
+              Navigator.pop(context);
+              final auth = context.read<AuthService>();
+              await auth.logoutAll();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Toutes les sessions ont été révoquées.')),
+              );
+              context.go('/auth');
+            },
+            child: const Text('Tout déconnecter', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+        child: const Text('Vous serez déconnecté de tous les appareils, y compris celui-ci.'),
       ),
     );
   }

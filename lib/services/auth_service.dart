@@ -155,6 +155,53 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Envoie un code OTP de réinitialisation par SMS.
+  Future<void> sendPasswordResetOtp(String telephone) async {
+    try {
+      await _api.dio.post('/auth/otp/send', data: {
+        'identifier': telephone,
+        'purpose': 'password_reset',
+      });
+    } catch (e) {
+      debugPrint('Send password reset OTP error: $e');
+      rethrow;
+    }
+  }
+
+  /// Réinitialise le mot de passe avec le code OTP reçu par SMS.
+  ///
+  /// The backend verifies and consumes the code in this single request.
+  Future<void> resetPassword({
+    required String telephone,
+    required String otpCode,
+    required String newPassword,
+  }) async {
+    try {
+      await _api.dio.post('/auth/password/reset', data: {
+        'telephone': telephone,
+        'otpCode': otpCode,
+        'newPassword': newPassword,
+      });
+    } catch (e) {
+      debugPrint('Reset password error: $e');
+      rethrow;
+    }
+  }
+
+  /// Révoque toutes les sessions actives de l'utilisateur.
+  Future<void> logoutAll() async {
+    try {
+      await _api.dio.post('/auth/logout/all');
+    } catch (e) {
+      debugPrint('Logout all error: $e');
+    } finally {
+      await ApiClient.clearSession();
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
+    }
+  }
+
   Future<void> signOut() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -165,10 +212,7 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Logout error on backend: $e');
     } finally {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('access_token');
-      await prefs.remove('refresh_token');
-      await prefs.remove('user_id');
+      await ApiClient.clearSession();
       _accessToken = null;
       _currentUser = null;
       notifyListeners();
