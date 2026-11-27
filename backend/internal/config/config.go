@@ -24,6 +24,7 @@ type Config struct {
 }
 
 type ServerConfig struct {
+	PublicURL   string
 	Port        string
 	Host        string
 	Environment string
@@ -107,6 +108,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Server: ServerConfig{
+			PublicURL:   v.GetString("API_PUBLIC_URL"),
 			Port:        v.GetString("SERVER_PORT"),
 			Host:        v.GetString("SERVER_HOST"),
 			Environment: v.GetString("ENVIRONMENT"),
@@ -197,6 +199,12 @@ func (cfg *Config) validate() error {
 	}
 	if cfg.Server.LogLevel == "" {
 		cfg.Server.LogLevel = "debug"
+	}
+	if len(cfg.CORS.AllowedOrigins) == 0 {
+		if cfg.IsProduction() {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production; set the exact frontend origins")
+		}
+		cfg.CORS.AllowedOrigins = []string{"http://localhost:3000", "http://localhost:8080", "http://localhost:5173"}
 	}
 	if cfg.Database.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required")

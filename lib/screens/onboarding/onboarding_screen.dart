@@ -214,54 +214,60 @@ class _OnboardingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.xl),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Illustration
-          Container(
-            width: double.infinity,
-            height: 260,
-            decoration: BoxDecoration(
-              color: data.accentColor.withOpacity(isDark ? 0.1 : 0.06),
-              borderRadius: BorderRadius.circular(FlexRadius.xl),
-            ),
-            child: _buildIllustration(data.illustration, data.accentColor),
-          ),
-          const SizedBox(height: FlexSpacing.xl),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Keep the illustration proportional on short screens. The page can
+        // scroll vertically when text scaling or a small viewport needs more
+        // room, instead of overflowing its PageView.
+        final illustrationHeight = (constraints.maxHeight * 0.34)
+            .clamp(120.0, 260.0);
 
-          // Title
-          Text(
-            data.title,
-            style: FlexTextStyles.h1.copyWith(
-              color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: FlexSpacing.xl),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: illustrationHeight,
+                  decoration: BoxDecoration(
+                    color: data.accentColor.withOpacity(isDark ? 0.1 : 0.06),
+                    borderRadius: BorderRadius.circular(FlexRadius.xl),
+                  ),
+                  child: _buildIllustration(data.illustration, data.accentColor),
+                ),
+                const SizedBox(height: FlexSpacing.lg),
+                Text(
+                  data.title,
+                  style: FlexTextStyles.h1.copyWith(
+                    color: isDark ? FlexColors.neutral0 : FlexColors.neutral800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: FlexSpacing.md),
+                Text(
+                  data.subtitle,
+                  style: FlexTextStyles.h3.copyWith(
+                    color: data.accentColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: FlexSpacing.md),
+                Text(
+                  data.description,
+                  style: FlexTextStyles.body.copyWith(
+                    color: isDark ? FlexColors.neutral400 : FlexColors.neutral500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: FlexSpacing.md),
-
-          // Subtitle
-          Text(
-            data.subtitle,
-            style: FlexTextStyles.h3.copyWith(
-              color: data.accentColor,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: FlexSpacing.md),
-
-          // Description
-          Text(
-            data.description,
-            style: FlexTextStyles.body.copyWith(
-              color: isDark ? FlexColors.neutral400 : FlexColors.neutral500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

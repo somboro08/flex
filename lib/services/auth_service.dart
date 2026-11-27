@@ -20,15 +20,23 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _accessToken = prefs.getString('access_token');
-    if (_accessToken != null) {
+    if (_accessToken != null && _accessToken!.isNotEmpty) {
       try {
         await fetchProfile();
       } catch (e) {
         debugPrint('Failed to fetch profile at startup: $e');
         _accessToken = null;
-        await prefs.remove('access_token');
+        await ApiClient.clearSession();
       }
     }
+  }
+
+  /// Restores a persisted session and returns whether the user is logged in.
+  ///
+  /// Kept as a compatibility helper for splash/router code.
+  Future<bool> restoreSession() async {
+    await init();
+    return isLoggedIn;
   }
 
   /// Connexion avec numéro de téléphone + mot de passe (backend Go).
