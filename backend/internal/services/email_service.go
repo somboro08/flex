@@ -3,8 +3,10 @@ package services
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/somboro08/flex-api/internal/config"
@@ -54,17 +56,37 @@ func (s *EmailService) Send(msg EmailMessage) error {
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.SMTPHost, s.cfg.SMTPPort)
 
-	tlsConfig := &tls.Config{
-		ServerName: s.cfg.SMTPHost,
-	}
-
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SMTP server: %w", err)
 	}
+	// Bound every SMTP command: a misconfigured server must never hang the API.
+	_ = conn.SetDeadline(time.Now().Add(25 * time.Second))
 	defer conn.Close()
 
-	client, err := smtp.NewClient(conn, s.cfg.SMTPHost)
+	tlsConfig := &tls.Config{ServerName: s.cfg.SMTPHost}
+
+	var client *smtp.Client
+	if s.cfg.SMTPPort == 465 {
+		// Implicit TLS (SMTPS).
+		tlsConn := tls.Client(conn, tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			return fmt.Errorf("SMTP TLS handshake failed: %w", err)
+		}
+		client, err = smtp.NewClient(tlsConn, s.cfg.SMTPHost)
+	} else {
+		// Plain connection upgraded with STARTTLS (usual ports 25/587).
+		client, err = smtp.NewClient(conn, s.cfg.SMTPHost)
+		if err == nil {
+			if ok, _ := client.Extension("STARTTLS"); ok {
+				if err := client.StartTLS(tlsConfig); err != nil {
+					client.Close()
+					return fmt.Errorf("SMTP STARTTLS failed: %w", err)
+				}
+			}
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create SMTP client: %w", err)
 	}
