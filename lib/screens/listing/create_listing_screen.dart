@@ -368,12 +368,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         const SizedBox(height: 16),
         TextFormField(
           controller: _quartierCtrl,
-          decoration: const InputDecoration(labelText: 'Quartier', hintText: 'Ex: Zongo'),
+          decoration: const InputDecoration(labelText: 'Quartier *', hintText: 'Ex: Zongo'),
+          validator: (v) => v == null || v.isEmpty ? 'Le quartier est requis' : null,
         ),
         const SizedBox(height: 16),
         TextFormField(
           controller: _adresseCtrl,
-          decoration: const InputDecoration(labelText: 'Adresse complète', hintText: 'Rue, numéro...'),
+          decoration: const InputDecoration(labelText: 'Adresse complète *', hintText: 'Rue, numéro...'),
+          validator: (v) => v == null || v.isEmpty ? 'L\'adresse est requise' : null,
         ),
         const SizedBox(height: 16),
         TextFormField(
