@@ -451,7 +451,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, identifier, otpCode, ne
 		user, err = s.userRepo.FindByTelephone(ctx, identifier)
 	}
 	if err != nil || user == nil {
-		return ErrUserNotFound
+		return repository.ErrUserNotFound
 	}
 
 	if err := s.VerifyOTP(ctx, identifier, otpCode, "password_reset"); err != nil {
